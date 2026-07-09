@@ -1,0 +1,108 @@
+@import "tailwindcss";
+
+:root {
+    --font-heading: "Cinzel", serif;
+    --font-text: "Inter", sans-serif;
+
+    --bg: #0f131a;
+    --bg-soft: #171c24;
+    --card: #1d232d;
+    --gold: #d6b36a;
+    --gold-light: #f2d79a;
+    --burgundy: #7b2d2f;
+    --burgundy-hover: #963638;
+    --cream: #f5f1e8;
+    --muted: #beb5a6;
+    --border: #2a313d;
+    --success: #4f8a5b;
+    --error: #b34747;
+
+    --radius-sm: 10px;
+    --radius-md: 18px;
+    --radius-lg: 24px;
+
+    --shadow-card: 0 8px 30px rgba(0,0,0,.35);
+
+    --transition: .25s ease;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#app {
+  min-height: 100%;
+}
+
+body {
+    margin: 0;
+    font-family: var(--font-body);
+    color: var(--cream);
+  
+    background:
+      radial-gradient(circle at top, rgba(214,179,106,.08), transparent 35%),
+      var(--bg);
+}
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
+}
+
+button {
+  cursor: pointer;
+}
+
+.page {
+  min-height: 100vh;
+  padding: 24px;
+}
+
+.title-font {
+  font-family: Georgia, "Times New Roman", serif;
+  letter-spacing: 0.04em;
+}
+
+.gold-glow {
+  box-shadow: 0 0 18px rgba(214, 179, 106, 0.18);
+}
+
+.heading-xl {
+    font-family: var(--font-heading);
+    font-size: 38px;
+    font-weight: 700;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+  }
+  
+  .heading-lg {
+    font-family: var(--font-heading);
+    font-size: 28px;
+    font-weight: 700;
+    text-transform: uppercase;
+  }
+  
+  .heading-md {
+    font-family: var(--font-heading);
+    font-size: 22px;
+    font-weight: 600;
+    text-transform: uppercase;
+  }
+  
+  .text-muted {
+    color: var(--muted);
+  }
+  
+  .text-gold {
+    color: var(--gold-light);
+  }
+
+  ::selection {
+    background: rgba(214, 179, 106, 0.25);
+    color: var(--cream);
+  }
+

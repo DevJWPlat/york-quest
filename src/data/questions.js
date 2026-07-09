@@ -1,0 +1,33 @@
+export const questions = [
+    {
+      id: 1,
+      roundId: 1,
+      order: 1,
+      text: 'What is the name of this pub?',
+      type: 'text',
+      points: 1,
+      correctAnswer: 'The Golden Fleece',
+      image: '',
+    },
+    {
+      id: 2,
+      roundId: 1,
+      order: 2,
+      text: 'How many ghost sightings can you spot on the walls?',
+      type: 'number',
+      points: 1,
+      correctAnswer: '3',
+      image: '',
+    },
+    {
+      id: 3,
+      roundId: 1,
+      order: 3,
+      text: 'Which Roman goddess was associated with wisdom?',
+      type: 'multiple-choice',
+      points: 1,
+      correctAnswer: 'Minerva',
+      image: '',
+      options: ['Minerva', 'Diana', 'Venus', 'Juno'],
+    },
+]
