@@ -1,21 +1,37 @@
 <script setup>
+import { computed } from 'vue'
+
 import AdminShell from '@/components/layout/AdminShell.vue'
 import AppButton from '@/components/base/AppButton.vue'
 import AppCard from '@/components/base/AppCard.vue'
 
 import { useGameStore } from '@/stores/gameStore'
-
-import { computed } from 'vue'
 import { users } from '@/data/users'
+
+const gameStore = useGameStore()
 
 const players = computed(() => users.filter((user) => user.role === 'player'))
 
-const submittedPlayerIds = computed(() => {
+const currentQuestionNumber = computed(() => {
+  if (!gameStore.currentQuestion) return null
+
+  return (
+    gameStore.currentRoundQuestions.findIndex(
+      (question) => question.id === gameStore.currentQuestion.id,
+    ) + 1
+  )
+})
+
+const submittedAnswers = computed(() => {
   if (!gameStore.currentQuestion) return []
 
-  return gameStore.answers
-    .filter((answer) => answer.questionId === gameStore.currentQuestion.id)
-    .map((answer) => answer.userId)
+  return gameStore.answers.filter(
+    (answer) => answer.questionId === gameStore.currentQuestion.id,
+  )
+})
+
+const submittedPlayerIds = computed(() => {
+  return submittedAnswers.value.map((answer) => answer.userId)
 })
 
 const submittedPlayers = computed(() => {
@@ -24,33 +40,108 @@ const submittedPlayers = computed(() => {
   )
 })
 
-const notSubmittedPlayers = computed(() => {
+const waitingPlayers = computed(() => {
   return players.value.filter((player) =>
     !submittedPlayerIds.value.includes(player.id),
   )
 })
 
-const gameStore = useGameStore()
+const allAnswered = computed(() => {
+  return (
+    gameStore.currentQuestion &&
+    submittedPlayers.value.length === players.value.length
+  )
+})
 
-function getRoundQuestions(roundId) {
-  return gameStore.questions
-    .filter((question) => question.roundId === roundId)
-    .sort((a, b) => a.order - b.order)
+function startNextAvailableRound() {
+  const nextRound = gameStore.rounds.find((round) => round.status !== 'completed')
+  if (!nextRound) return
+
+  gameStore.startRound(nextRound.id)
 }
 </script>
 
 <template>
   <AdminShell>
-    <AppCard class="admin-card">
+    <AppCard class="admin-card hero-card">
       <small>Current Game</small>
 
-      <h2 v-if="gameStore.currentRound">
-        {{ gameStore.currentRound.title }} - {{ gameStore.currentRound.pubName }}
-      </h2>
+      <template v-if="gameStore.currentRound">
+        <h2>{{ gameStore.currentRound.title }}</h2>
+        <p>{{ gameStore.currentRound.pubName }}</p>
 
-      <h2 v-else>No active round</h2>
+        <div class="status-pill">
+          {{ gameStore.gameState }}
+        </div>
+      </template>
 
-      <p>State: {{ gameStore.gameState }}</p>
+      <template v-else>
+        <h2>No active round</h2>
+        <p>Start the next round when everyone is ready.</p>
+      </template>
+    </AppCard>
+
+    <AppCard class="admin-card">
+      <small>Round Control</small>
+
+      <div v-if="!gameStore.currentRound" class="control-grid">
+        <AppButton full @click="startNextAvailableRound">
+          Start Next Round
+        </AppButton>
+      </div>
+
+      <div v-else class="control-grid">
+        <AppButton
+          v-if="gameStore.gameState === 'roundIntro'"
+          full
+          @click="gameStore.startNextQuestion()"
+        >
+          Start Question 1
+        </AppButton>
+
+        <AppButton
+          v-else-if="gameStore.gameState === 'submitted' || gameStore.gameState === 'question'"
+          full
+          :class="{ glow: allAnswered }"
+          @click="gameStore.startNextQuestion()"
+        >
+          Start Next Question
+        </AppButton>
+
+        <AppButton
+          v-else-if="gameStore.gameState === 'roundComplete'"
+          full
+          @click="gameStore.completeRound()"
+        >
+          Complete Round
+        </AppButton>
+
+        <AppButton
+          variant="dark"
+          full
+          @click="gameStore.completeRound()"
+        >
+          End Round
+        </AppButton>
+      </div>
+    </AppCard>
+
+    <AppCard v-if="gameStore.currentRound" class="admin-card">
+      <small>Questions</small>
+
+      <div class="question-list">
+        <button
+          v-for="question in gameStore.currentRoundQuestions"
+          :key="question.id"
+          type="button"
+          class="question-row"
+          :class="{ active: gameStore.activeQuestionId === question.id }"
+          @click="gameStore.startQuestion(question.id)"
+        >
+          <span>Question {{ question.order }}</span>
+          <strong>{{ question.text }}</strong>
+        </button>
+      </div>
     </AppCard>
 
     <AppCard v-if="gameStore.currentQuestion" class="admin-card">
@@ -59,6 +150,10 @@ function getRoundQuestions(roundId) {
       <h2>
         {{ submittedPlayers.length }} / {{ players.length }} answered
       </h2>
+
+      <p v-if="allAnswered" class="all-answered">
+        Everyone has answered.
+      </p>
 
       <div class="player-status-list">
         <div
@@ -70,7 +165,7 @@ function getRoundQuestions(roundId) {
         </div>
 
         <div
-          v-for="player in notSubmittedPlayers"
+          v-for="player in waitingPlayers"
           :key="player.id"
           class="player-status waiting"
         >
@@ -78,61 +173,16 @@ function getRoundQuestions(roundId) {
         </div>
       </div>
     </AppCard>
-
-    <AppCard class="admin-card">
-      <small>Rounds</small>
-
-      <div class="round-list">
-        <div
-          v-for="round in gameStore.rounds"
-          :key="round.id"
-          class="round-row"
-        >
-          <div>
-            <strong>{{ round.title }}</strong>
-            <span>{{ round.pubName }}</span>
-          </div>
-
-          <AppButton
-            variant="secondary"
-            @click="gameStore.startRound(round.id)"
-          >
-            Start
-          </AppButton>
-        </div>
-      </div>
-    </AppCard>
-
-    <AppCard v-if="gameStore.currentRound" class="admin-card">
-      <small>Questions</small>
-
-      <div class="question-list">
-        <button
-          v-for="question in getRoundQuestions(gameStore.currentRound.id)"
-          :key="question.id"
-          class="question-row"
-          :class="{ active: gameStore.activeQuestionId === question.id }"
-          @click="gameStore.startQuestion(question.id)"
-        >
-          <span>Question {{ question.order }}</span>
-          <strong>{{ question.text }}</strong>
-        </button>
-      </div>
-    </AppCard>
-
-    <AppCard v-if="gameStore.currentRound" class="admin-card">
-      <small>Round Actions</small>
-
-      <AppButton full @click="gameStore.completeRound()">
-        End Round
-      </AppButton>
-    </AppCard>
   </AdminShell>
 </template>
 
 <style scoped>
 .admin-card {
   padding: 18px;
+}
+
+.hero-card {
+  text-align: center;
 }
 
 small {
@@ -144,44 +194,44 @@ small {
 }
 
 h2 {
-  margin: 0 0 8px;
+  margin: 0;
+  color: var(--cream);
+  font-size: 26px;
 }
 
 p {
-  margin: 0;
+  margin: 8px 0 0;
   color: var(--muted);
 }
 
-.round-list,
-.question-list {
+.status-pill {
+  display: inline-block;
+  margin-top: 16px;
+  border: 1px solid var(--gold);
+  border-radius: 999px;
+  color: var(--gold-light);
+  padding: 8px 14px;
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.control-grid {
   display: grid;
   gap: 12px;
 }
 
-.round-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  padding: 14px;
-  border: 1px solid var(--border);
-  border-radius: 14px;
-  background: var(--card);
+.glow {
+  box-shadow: 0 0 24px rgba(214, 179, 106, 0.25);
 }
 
-.round-row div {
+.question-list,
+.player-status-list {
   display: grid;
-  gap: 4px;
-}
-
-.round-row span {
-  color: var(--muted);
-  font-size: 13px;
+  gap: 10px;
 }
 
 .question-row {
-  display: grid;
-  gap: 4px;
   width: 100%;
   border: 1px solid var(--border);
   border-radius: 14px;
@@ -192,6 +242,8 @@ p {
 }
 
 .question-row span {
+  display: block;
+  margin-bottom: 4px;
   color: var(--gold);
   font-size: 12px;
   font-weight: 800;
@@ -200,5 +252,26 @@ p {
 .question-row.active {
   border-color: var(--gold);
   box-shadow: 0 0 18px rgba(214, 179, 106, 0.14);
+}
+
+.all-answered {
+  color: var(--success);
+  font-weight: 800;
+}
+
+.player-status {
+  padding: 10px 12px;
+  border-radius: 10px;
+  font-size: 14px;
+}
+
+.player-status.submitted {
+  background: rgba(79, 138, 91, 0.15);
+  color: #8fd19e;
+}
+
+.player-status.waiting {
+  background: rgba(214, 179, 106, 0.08);
+  color: var(--muted);
 }
 </style>

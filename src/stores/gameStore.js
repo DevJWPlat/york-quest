@@ -113,6 +113,61 @@ export const useGameStore = defineStore('game', () => {
     answer.pointsAwarded = isCorrect ? question.points : 0
   }
 
+  function addRound(roundData) {
+    rounds.value.push({
+      id: Date.now(),
+      title: roundData.title,
+      pubName: roundData.pubName,
+      status: 'locked',
+    })
+  }
+  
+  function updateRound(roundId, roundData) {
+    rounds.value = rounds.value.map((round) => {
+      if (round.id !== roundId) return round
+  
+      return {
+        ...round,
+        ...roundData,
+      }
+    })
+  }
+  
+  function deleteRound(roundId) {
+    rounds.value = rounds.value.filter((round) => round.id !== roundId)
+    questions.value = questions.value.filter((question) => question.roundId !== roundId)
+  }
+  
+  function addQuestion(questionData) {
+    questions.value.push({
+      id: Date.now(),
+      roundId: questionData.roundId,
+      order: questionData.order,
+      text: questionData.text,
+      type: questionData.type,
+      points: Number(questionData.points || 1),
+      correctAnswer: questionData.correctAnswer,
+      image: questionData.image || '',
+      options: questionData.options || [],
+    })
+  }
+  
+  function updateQuestion(questionId, questionData) {
+    questions.value = questions.value.map((question) => {
+      if (question.id !== questionId) return question
+  
+      return {
+        ...question,
+        ...questionData,
+        points: Number(questionData.points || 1),
+      }
+    })
+  }
+  
+  function deleteQuestion(questionId) {
+    questions.value = questions.value.filter((question) => question.id !== questionId)
+  }
+
   return {
     rounds,
     questions,
@@ -130,6 +185,12 @@ export const useGameStore = defineStore('game', () => {
     startNextQuestion,
     completeRound,
     markAnswer,
+    addRound,
+    updateRound,
+    deleteRound,
+    addQuestion,
+    updateQuestion,
+    deleteQuestion,
   }
 
   
