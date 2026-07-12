@@ -1,0 +1,8 @@
+name = "york-quest"
+compatibility_date = "2026-07-09"
+pages_build_output_dir = "dist"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "york-quest-db"
+database_id = "ad108cac-0cbd-424c-82e1-e7473dcb7f05"
