@@ -120,17 +120,23 @@ export const useGameStore = defineStore('game', () => {
     gameState.value = 'roundComplete'
   }
 
-  function completeRound() {
+  async function completeRound() {
     if (!currentRound.value) return
-
+  
+    const completedRoundId = currentRound.value.id
+  
     rounds.value = rounds.value.map((round) => ({
       ...round,
-      status: round.id === currentRound.value.id ? 'completed' : round.status,
+      status: round.id === completedRoundId
+        ? 'completed'
+        : round.status,
     }))
-
+  
     activeRoundId.value = null
     activeQuestionId.value = null
     gameState.value = 'waiting'
+  
+    await saveGameState()
   }
 
   async function markAnswer(answerId, isCorrect) {
@@ -321,6 +327,15 @@ export const useGameStore = defineStore('game', () => {
     }
   }
 
+  async function endRound() {
+    if (!currentRound.value) return
+  
+    activeQuestionId.value = null
+    gameState.value = 'roundComplete'
+  
+    await saveGameState()
+  }
+
   return {
     rounds,
     questions,
@@ -347,6 +362,7 @@ export const useGameStore = defineStore('game', () => {
     loadGameState,
     saveGameState,
     loadAnswers,
+    endRound,
   }
 
   

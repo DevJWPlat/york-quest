@@ -18,6 +18,7 @@ import { useGameStore } from '@/stores/gameStore'
 import { users } from '@/data/users'
 
 const gameStore = useGameStore()
+const showEndRoundWarning = ref(false)
 
 const players = computed(() => {
   return users.filter((user) => user.role === 'player')
@@ -134,6 +135,15 @@ function confirmNextQuestion() {
   gameStore.startNextQuestion()
 }
 
+function requestEndRound() {
+  showEndRoundWarning.value = true
+}
+
+async function confirmEndRound() {
+  showEndRoundWarning.value = false
+  await gameStore.endRound()
+}
+
 onMounted(async () => {
   await refreshAnswers()
 
@@ -210,13 +220,13 @@ watch(
           full
           @click="gameStore.completeRound()"
         >
-          Complete Round
+          Return Players to Waiting
         </AppButton>
 
         <AppButton
           variant="dark"
           full
-          @click="gameStore.completeRound()"
+          @click="requestEndRound"
         >
           End Round
         </AppButton>
@@ -277,6 +287,14 @@ watch(
       confirm-label="Continue"
       @cancel="showNextQuestionWarning = false"
       @confirm="confirmNextQuestion"
+    />
+    <AppConfirmModal
+      :show="showEndRoundWarning"
+      title="End This Round?"
+      message="Are you sure? Any players who have not submitted an answer will no longer be able to answer this question."
+      confirm-label="End Round"
+      @cancel="showEndRoundWarning = false"
+      @confirm="confirmEndRound"
     />
   </AdminShell>
 </template>
