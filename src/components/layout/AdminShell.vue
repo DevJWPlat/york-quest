@@ -53,8 +53,10 @@ function logout() {
       
     <header class="admin-header">
       <div>
-        <span>Admin</span>
-        <h1>Quest Control</h1>
+        <RouterLink to="/admin">
+          <span>Admin</span>
+          <h1>Quest Control</h1>
+        </RouterLink>
       </div>
     </header>
 
