@@ -55,21 +55,48 @@ export const useGameStore = defineStore('game', () => {
     await saveGameState()
   }
 
-  function submitAnswer({ userId, answer }) {
-    if (!currentRound.value || !currentQuestion.value) return
-
-    answers.value.push({
-      id: Date.now(),
-      userId,
-      roundId: currentRound.value.id,
-      questionId: currentQuestion.value.id,
-      answer,
-      isCorrect: null,
-      pointsAwarded: 0,
-      submittedAt: new Date().toISOString(),
-    })
-
-    gameState.value = 'submitted'
+  async function submitAnswer({ userId, answer }) {
+    if (!activeRoundId.value || !activeQuestionId.value) {
+      console.error('No active round or question.')
+      return
+    }
+  
+    try {
+      const response = await fetch('/api/answers', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          userId,
+          roundId: activeRoundId.value,
+          questionId: activeQuestionId.value,
+          answer,
+        }),
+      })
+  
+      const data = await response.json()
+  
+      if (!response.ok) {
+        throw new Error(data.error || 'Unable to submit answer.')
+      }
+  
+      answers.value.push(data)
+  
+      gameState.value = 'submitted'
+  
+      return {
+        success: true,
+        answer: data,
+      }
+    } catch (error) {
+      console.error('Failed to submit answer:', error)
+  
+      return {
+        success: false,
+        error: error.message,
+      }
+    }
   }
 
   function startNextQuestion() {

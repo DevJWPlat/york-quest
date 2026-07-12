@@ -87,6 +87,8 @@ img {
     position: absolute;
     z-index: 1;
     bottom: 30px;
+    width: 100%;
+    max-width: 150px;
 }
 
 

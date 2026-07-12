@@ -95,4 +95,6 @@ onUnmounted(() => {
   padding: 8px;
   font-size: 12px;
 }
+
+
 </style>
