@@ -1,4 +1,4 @@
-function jsonResponse(data, status = 200) {
+function json(data, status = 200) {
     return Response.json(data, {
       status,
       headers: {
@@ -7,9 +7,9 @@ function jsonResponse(data, status = 200) {
     })
   }
   
-  export async function onRequestGet(context) {
+  export async function onRequestGet({ env }) {
     try {
-      const state = await context.env.DB
+      const state = await env.DB
         .prepare(`
           SELECT
             id,
@@ -22,48 +22,32 @@ function jsonResponse(data, status = 200) {
         `)
         .first()
   
-      if (!state) {
-        return jsonResponse(
-          { error: 'Game state was not found.' },
-          404,
-        )
-      }
-  
-      return jsonResponse(state)
+      return state
+        ? json(state)
+        : json({ error: 'Game state not found.' }, 404)
     } catch (error) {
-      console.error('Failed to load game state:', error)
-  
-      return jsonResponse(
-        { error: 'Unable to load the game state.' },
-        500,
-      )
+      console.error(error)
+      return json({ error: 'Unable to load game state.' }, 500)
     }
   }
   
-  export async function onRequestPut(context) {
+  export async function onRequestPut({ request, env }) {
     try {
-      const body = await context.request.json()
+      const body = await request.json()
   
       const allowedStatuses = [
         'waiting',
         'roundIntro',
         'question',
-        'submitted',
         'roundComplete',
         'questComplete',
       ]
   
       if (!allowedStatuses.includes(body.status)) {
-        return jsonResponse(
-          { error: 'Invalid game status.' },
-          400,
-        )
+        return json({ error: 'Invalid status.' }, 400)
       }
   
-      const activeRoundId = body.activeRoundId ?? null
-      const activeQuestionId = body.activeQuestionId ?? null
-  
-      await context.env.DB
+      await env.DB
         .prepare(`
           UPDATE game_state
           SET
@@ -75,12 +59,12 @@ function jsonResponse(data, status = 200) {
         `)
         .bind(
           body.status,
-          activeRoundId,
-          activeQuestionId,
+          body.activeRoundId ?? null,
+          body.activeQuestionId ?? null,
         )
         .run()
   
-      const updatedState = await context.env.DB
+      const updatedState = await env.DB
         .prepare(`
           SELECT
             id,
@@ -93,13 +77,9 @@ function jsonResponse(data, status = 200) {
         `)
         .first()
   
-      return jsonResponse(updatedState)
+      return json(updatedState)
     } catch (error) {
-      console.error('Failed to update game state:', error)
-  
-      return jsonResponse(
-        { error: 'Unable to update the game state.' },
-        500,
-      )
+      console.error(error)
+      return json({ error: 'Unable to update game state.' }, 500)
     }
   }

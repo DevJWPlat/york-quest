@@ -1,4 +1,5 @@
 <script setup>
+import { onMounted } from 'vue'
 import PlayerShell from '@/components/layout/PlayerShell.vue'
 import WaitingScreen from '@/components/player/WaitingScreen.vue'
 import RoundIntroCard from '@/components/player/RoundIntroCard.vue'
@@ -19,6 +20,10 @@ function submitAnswer(answer) {
     answer,
   })
 }
+
+onMounted(() => {
+  gameStore.loadGameState()
+})
 </script>
 
 <template>

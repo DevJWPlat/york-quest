@@ -1,4 +1,3 @@
--- Migration number: 0001 	 2026-07-11T08:17:23.546Z
 CREATE TABLE IF NOT EXISTS game_state (
   id INTEGER PRIMARY KEY CHECK (id = 1),
   status TEXT NOT NULL DEFAULT 'waiting',

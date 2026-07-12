@@ -35,15 +35,17 @@ export const useGameStore = defineStore('game', () => {
     return rounds.value.find((round) => round.status !== 'completed') || null
   })
 
-  function startRound(roundId) {
+  async function startRound(roundId) {
     activeRoundId.value = roundId
     activeQuestionId.value = null
     gameState.value = 'roundIntro'
-
+  
     rounds.value = rounds.value.map((round) => ({
       ...round,
       status: round.id === roundId ? 'live' : round.status,
     }))
+  
+    await saveGameState()
   }
 
   function startQuestion(questionId) {
@@ -168,6 +170,46 @@ export const useGameStore = defineStore('game', () => {
     questions.value = questions.value.filter((question) => question.id !== questionId)
   }
 
+  async function loadGameState() {
+    try {
+      const response = await fetch('/api/game-state')
+  
+      if (!response.ok) {
+        throw new Error('Could not load game state')
+      }
+  
+      const state = await response.json()
+  
+      gameState.value = state.status
+      activeRoundId.value = state.activeRoundId
+      activeQuestionId.value = state.activeQuestionId
+    } catch (error) {
+      console.error('Failed to load game state:', error)
+    }
+  }
+  
+  async function saveGameState() {
+    try {
+      const response = await fetch('/api/game-state', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          status: gameState.value,
+          activeRoundId: activeRoundId.value,
+          activeQuestionId: activeQuestionId.value,
+        }),
+      })
+  
+      if (!response.ok) {
+        throw new Error('Could not save game state')
+      }
+    } catch (error) {
+      console.error('Failed to save game state:', error)
+    }
+  }
+
   return {
     rounds,
     questions,
@@ -191,6 +233,8 @@ export const useGameStore = defineStore('game', () => {
     addQuestion,
     updateQuestion,
     deleteQuestion,
+    loadGameState,
+    saveGameState,
   }
 
   
