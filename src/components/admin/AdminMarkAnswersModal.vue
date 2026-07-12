@@ -237,8 +237,8 @@ watch(
 
 .modal-header {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
+  flex-direction: column;
+  align-items: flex-start;
   gap: 16px;
   padding: 20px;
   border-bottom: 1px solid var(--border);
