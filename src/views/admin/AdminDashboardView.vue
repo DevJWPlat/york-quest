@@ -13,11 +13,13 @@ import AdminShell from '@/components/layout/AdminShell.vue'
 import AppButton from '@/components/base/AppButton.vue'
 import AppCard from '@/components/base/AppCard.vue'
 import AppConfirmModal from '@/components/base/AppConfirmModal.vue'
+import AdminMarkAnswersModal from '@/components/admin/AdminMarkAnswersModal.vue'
 
 import { useGameStore } from '@/stores/gameStore'
 import { users } from '@/data/users'
 
 const gameStore = useGameStore()
+const showMarkAnswersModal = ref(false)
 const showEndRoundWarning = ref(false)
 
 const players = computed(() => {
@@ -226,6 +228,14 @@ watch(
         >
           Start Next Question
         </AppButton>
+        <AppButton
+          v-if="gameStore.currentQuestion"
+          variant="secondary"
+          full
+          @click="showMarkAnswersModal = true"
+        >
+          Mark Answers
+        </AppButton>
 
         <AppButton
           v-else-if="gameStore.gameState === 'roundComplete'"
@@ -307,6 +317,10 @@ watch(
       confirm-label="End Round"
       @cancel="showEndRoundWarning = false"
       @confirm="confirmEndRound"
+    />
+    <AdminMarkAnswersModal
+      :show="showMarkAnswersModal"
+      @close="showMarkAnswersModal = false"
     />
   </AdminShell>
 </template>
