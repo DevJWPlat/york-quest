@@ -133,15 +133,63 @@ export const useGameStore = defineStore('game', () => {
     gameState.value = 'waiting'
   }
 
-  function markAnswer(answerId, isCorrect) {
+  async function markAnswer(answerId, isCorrect) {
     const answer = answers.value.find((item) => item.id === answerId)
   
-    if (!answer) return
+    if (!answer) {
+      return {
+        success: false,
+        error: 'Answer not found.',
+      }
+    }
   
-    const question = questions.value.find((item) => item.id === answer.questionId)
+    const question = questions.value.find(
+      (item) => item.id === answer.questionId,
+    )
   
-    answer.isCorrect = isCorrect
-    answer.pointsAwarded = isCorrect ? question.points : 0
+    const pointsAwarded = isCorrect
+      ? Number(question?.points || 1)
+      : 0
+  
+    try {
+      const response = await fetch('/api/answers', {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          answerId,
+          isCorrect,
+          pointsAwarded,
+        }),
+      })
+  
+      const data = await response.json()
+  
+      if (!response.ok) {
+        throw new Error(data.error || 'Unable to mark answer.')
+      }
+  
+      const answerIndex = answers.value.findIndex(
+        (item) => item.id === answerId,
+      )
+  
+      if (answerIndex !== -1) {
+        answers.value[answerIndex] = data
+      }
+  
+      return {
+        success: true,
+        answer: data,
+      }
+    } catch (error) {
+      console.error('Failed to mark answer:', error)
+  
+      return {
+        success: false,
+        error: error.message,
+      }
+    }
   }
 
   function addRound(roundData) {

@@ -67,61 +67,37 @@ function json(data, status = 200) {
     }
   }
   
-  export async function onRequestPost({ request, env }) {
+  export async function onRequestPatch({ request, env }) {
     try {
       const body = await request.json()
   
-      const userId = Number(body.userId)
-      const roundId = Number(body.roundId)
-      const questionId = Number(body.questionId)
-      const answer = String(body.answer ?? '').trim()
+      const answerId = Number(body.answerId)
+      const isCorrect = Boolean(body.isCorrect)
+      const pointsAwarded = Number(body.pointsAwarded ?? 0)
   
-      if (!userId || !roundId || !questionId || !answer) {
+      if (!answerId) {
         return json(
-          {
-            error:
-              'userId, roundId, questionId and answer are required.',
-          },
+          { error: 'answerId is required.' },
           400,
         )
       }
   
-      const existingAnswer = await env.DB
+      await env.DB
         .prepare(`
-          SELECT id
-          FROM answers
-          WHERE user_id = ?
-            AND question_id = ?
-        `)
-        .bind(userId, questionId)
-        .first()
-  
-      if (existingAnswer) {
-        return json(
-          { error: 'You have already answered this question.' },
-          409,
-        )
-      }
-  
-      const result = await env.DB
-        .prepare(`
-          INSERT INTO answers (
-            user_id,
-            round_id,
-            question_id,
-            answer
-          )
-          VALUES (?, ?, ?, ?)
+          UPDATE answers
+          SET
+            is_correct = ?,
+            points_awarded = ?
+          WHERE id = ?
         `)
         .bind(
-          userId,
-          roundId,
-          questionId,
-          answer,
+          isCorrect ? 1 : 0,
+          isCorrect ? pointsAwarded : 0,
+          answerId,
         )
         .run()
   
-      const createdAnswer = await env.DB
+      const updatedAnswer = await env.DB
         .prepare(`
           SELECT
             id,
@@ -135,16 +111,25 @@ function json(data, status = 200) {
           FROM answers
           WHERE id = ?
         `)
-        .bind(result.meta.last_row_id)
+        .bind(answerId)
         .first()
   
-      return json(createdAnswer, 201)
+      if (!updatedAnswer) {
+        return json(
+          { error: 'Answer not found.' },
+          404,
+        )
+      }
+  
+      return json(updatedAnswer)
     } catch (error) {
-      console.error('Failed to submit answer:', error)
+      console.error('Failed to mark answer:', error)
   
       return json(
-        { error: 'Unable to submit answer.' },
+        { error: 'Unable to mark answer.' },
         500,
       )
     }
-  }
+}
+
+    
