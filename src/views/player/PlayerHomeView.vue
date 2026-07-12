@@ -1,5 +1,5 @@
 <script setup>
-import { onMounted } from 'vue'
+import { onMounted, onUnmounted } from 'vue'
 import PlayerShell from '@/components/layout/PlayerShell.vue'
 import WaitingScreen from '@/components/player/WaitingScreen.vue'
 import RoundIntroCard from '@/components/player/RoundIntroCard.vue'
@@ -21,8 +21,18 @@ function submitAnswer(answer) {
   })
 }
 
-onMounted(() => {
-  gameStore.loadGameState()
+let gameStateInterval
+
+onMounted(async () => {
+  await gameStore.loadGameState()
+
+  gameStateInterval = setInterval(() => {
+    gameStore.loadGameState()
+  }, 2000)
+})
+
+onUnmounted(() => {
+  clearInterval(gameStateInterval)
 })
 </script>
 
