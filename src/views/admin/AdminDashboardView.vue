@@ -1,5 +1,10 @@
 <script setup>
-import { computed } from 'vue'
+import {
+  computed,
+  onMounted,
+  onUnmounted,
+  watch,
+} from 'vue'
 
 import AdminShell from '@/components/layout/AdminShell.vue'
 import AppButton from '@/components/base/AppButton.vue'
@@ -10,7 +15,9 @@ import { users } from '@/data/users'
 
 const gameStore = useGameStore()
 
-const players = computed(() => users.filter((user) => user.role === 'player'))
+const players = computed(() => {
+  return users.filter((user) => user.role === 'player')
+})
 
 const currentQuestionNumber = computed(() => {
   if (!gameStore.currentQuestion) return null
@@ -41,24 +48,69 @@ const submittedPlayers = computed(() => {
 })
 
 const waitingPlayers = computed(() => {
-  return players.value.filter((player) =>
-    !submittedPlayerIds.value.includes(player.id),
+  return players.value.filter(
+    (player) => !submittedPlayerIds.value.includes(player.id),
   )
 })
 
 const allAnswered = computed(() => {
-  return (
+  return Boolean(
     gameStore.currentQuestion &&
-    submittedPlayers.value.length === players.value.length
+      players.value.length > 0 &&
+      submittedPlayers.value.length === players.value.length,
   )
 })
 
 function startNextAvailableRound() {
-  const nextRound = gameStore.rounds.find((round) => round.status !== 'completed')
+  const nextRound = gameStore.rounds.find(
+    (round) => round.status !== 'completed',
+  )
+
   if (!nextRound) return
 
   gameStore.startRound(nextRound.id)
 }
+
+let answersInterval
+let loadingAnswers = false
+
+async function refreshAnswers() {
+  if (loadingAnswers) return
+
+  if (!gameStore.currentQuestion) {
+    gameStore.answers = []
+    return
+  }
+
+  loadingAnswers = true
+
+  try {
+    await gameStore.loadAnswers({
+      questionId: gameStore.currentQuestion.id,
+    })
+  } finally {
+    loadingAnswers = false
+  }
+}
+
+onMounted(async () => {
+  await refreshAnswers()
+
+  answersInterval = window.setInterval(() => {
+    refreshAnswers()
+  }, 2000)
+})
+
+onUnmounted(() => {
+  window.clearInterval(answersInterval)
+})
+
+watch(
+  () => gameStore.currentQuestion?.id,
+  async () => {
+    await refreshAnswers()
+  },
+)
 </script>
 
 <template>

@@ -239,6 +239,40 @@ export const useGameStore = defineStore('game', () => {
     }
   }
 
+  async function loadAnswers(filters = {}) {
+    try {
+      const params = new URLSearchParams()
+  
+      if (filters.questionId) {
+        params.set('questionId', filters.questionId)
+      }
+  
+      if (filters.roundId) {
+        params.set('roundId', filters.roundId)
+      }
+  
+      if (filters.userId) {
+        params.set('userId', filters.userId)
+      }
+  
+      const query = params.toString()
+      const url = query ? `/api/answers?${query}` : '/api/answers'
+  
+      const response = await fetch(url)
+  
+      if (!response.ok) {
+        throw new Error('Could not load answers.')
+      }
+  
+      answers.value = await response.json()
+  
+      return answers.value
+    } catch (error) {
+      console.error('Failed to load answers:', error)
+      return []
+    }
+  }
+
   return {
     rounds,
     questions,
@@ -264,6 +298,7 @@ export const useGameStore = defineStore('game', () => {
     deleteQuestion,
     loadGameState,
     saveGameState,
+    loadAnswers,
   }
 
   
