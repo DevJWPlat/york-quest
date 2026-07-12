@@ -48,9 +48,11 @@ export const useGameStore = defineStore('game', () => {
     await saveGameState()
   }
 
-  function startQuestion(questionId) {
+  async function startQuestion(questionId) {
     activeQuestionId.value = questionId
     gameState.value = 'question'
+  
+    await saveGameState()
   }
 
   function submitAnswer({ userId, answer }) {
