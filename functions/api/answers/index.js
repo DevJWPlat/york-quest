@@ -66,6 +66,87 @@ function json(data, status = 200) {
       )
     }
   }
+
+  export async function onRequestPost({ request, env }) {
+    try {
+      const body = await request.json()
+  
+      const userId = Number(body.userId)
+      const roundId = Number(body.roundId)
+      const questionId = Number(body.questionId)
+      const answer = String(body.answer ?? '').trim()
+  
+      if (!userId || !roundId || !questionId || !answer) {
+        return json(
+          {
+            error: 'userId, roundId, questionId and answer are required.',
+          },
+          400,
+        )
+      }
+  
+      const existingAnswer = await env.DB
+        .prepare(`
+          SELECT id
+          FROM answers
+          WHERE user_id = ?
+            AND question_id = ?
+        `)
+        .bind(userId, questionId)
+        .first()
+  
+      if (existingAnswer) {
+        return json(
+          { error: 'You have already answered this question.' },
+          409,
+        )
+      }
+  
+      const result = await env.DB
+        .prepare(`
+          INSERT INTO answers (
+            user_id,
+            round_id,
+            question_id,
+            answer
+          )
+          VALUES (?, ?, ?, ?)
+        `)
+        .bind(
+          userId,
+          roundId,
+          questionId,
+          answer,
+        )
+        .run()
+  
+      const createdAnswer = await env.DB
+        .prepare(`
+          SELECT
+            id,
+            user_id AS userId,
+            round_id AS roundId,
+            question_id AS questionId,
+            answer,
+            is_correct AS isCorrect,
+            points_awarded AS pointsAwarded,
+            submitted_at AS submittedAt
+          FROM answers
+          WHERE id = ?
+        `)
+        .bind(result.meta.last_row_id)
+        .first()
+  
+      return json(createdAnswer, 201)
+    } catch (error) {
+      console.error('Failed to submit answer:', error)
+  
+      return json(
+        { error: 'Unable to submit answer.' },
+        500,
+      )
+    }
+  }
   
   export async function onRequestPatch({ request, env }) {
     try {

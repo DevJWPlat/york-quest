@@ -77,7 +77,19 @@ export const useGameStore = defineStore('game', () => {
         }),
       })
   
-      const data = await response.json()
+      const responseText = await response.text()
+
+      let data = {}
+
+      if (responseText) {
+        try {
+          data = JSON.parse(responseText)
+        } catch {
+          throw new Error(
+            `The answers API returned an invalid response (${response.status}).`,
+          )
+        }
+      }
   
       if (!response.ok) {
         return {
