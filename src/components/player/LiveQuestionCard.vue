@@ -18,6 +18,14 @@ const props = defineProps({
     type: Number,
     required: true,
   },
+  submitting: {
+  type: Boolean,
+  default: false,
+  },
+  error: {
+    type: String,
+    default: '',
+  },
 })
 
 const emit = defineEmits(['submit'])
@@ -72,10 +80,16 @@ function submitAnswer() {
         rows="4"
         placeholder="Enter your answer"
       />
-
-      <AppButton full :disabled="!answer" @click="submitAnswer">
-        Submit Answer
-      </AppButton>
+      <p v-if="error" class="submit-error">
+        {{ error }}
+      </p>
+      <AppButton
+      full
+      :disabled="!answer || submitting"
+      @click="submitAnswer"
+    >
+      {{ submitting ? 'Submitting...' : 'Submit Answer' }}
+    </AppButton>
     </AppCard>
   </section>
 </template>
@@ -111,6 +125,13 @@ function submitAnswer() {
   height: 100%;
   border-radius: inherit;
   background: linear-gradient(90deg, var(--gold), var(--gold-light));
+}
+
+.submit-error {
+  margin: 0;
+  color: var(--error);
+  font-size: 13px;
+  font-weight: 700;
 }
 
 .icon-circle {

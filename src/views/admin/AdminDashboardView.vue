@@ -77,6 +77,7 @@ function startNextAvailableRound() {
 }
 
 let answersInterval
+let gameStateInterval
 let loadingAnswers = false
 
 async function refreshAnswers() {
@@ -145,14 +146,25 @@ async function confirmEndRound() {
 }
 
 onMounted(async () => {
+  // Restore the active round, question and game state from D1
+  await gameStore.loadGameState()
+
+  // Load answers for the active question
   await refreshAnswers()
 
+  // Keep the admin game state synced
+  gameStateInterval = window.setInterval(() => {
+    gameStore.loadGameState()
+  }, 2000)
+
+  // Keep submitted answers synced
   answersInterval = window.setInterval(() => {
     refreshAnswers()
   }, 2000)
 })
 
 onUnmounted(() => {
+  window.clearInterval(gameStateInterval)
   window.clearInterval(answersInterval)
 })
 

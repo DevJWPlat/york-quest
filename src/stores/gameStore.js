@@ -57,8 +57,10 @@ export const useGameStore = defineStore('game', () => {
 
   async function submitAnswer({ userId, answer }) {
     if (!activeRoundId.value || !activeQuestionId.value) {
-      console.error('No active round or question.')
-      return
+      return {
+        success: false,
+        error: 'There is no active question.',
+      }
     }
   
     try {
@@ -78,12 +80,19 @@ export const useGameStore = defineStore('game', () => {
       const data = await response.json()
   
       if (!response.ok) {
-        throw new Error(data.error || 'Unable to submit answer.')
+        return {
+          success: false,
+          error: data.error || 'Unable to submit answer.',
+        }
       }
   
-      answers.value.push(data)
+      const existingIndex = answers.value.findIndex(
+        (item) => item.id === data.id,
+      )
   
-      
+      if (existingIndex === -1) {
+        answers.value.push(data)
+      }
   
       return {
         success: true,
@@ -94,7 +103,7 @@ export const useGameStore = defineStore('game', () => {
   
       return {
         success: false,
-        error: error.message,
+        error: 'The answer could not be submitted. Please try again.',
       }
     }
   }

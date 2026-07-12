@@ -23,6 +23,7 @@ const gameStore = useGameStore()
 
 const submittedQuestionId = ref(null)
 const submittingAnswer = ref(false)
+const submissionError = ref('')
 
 const hasSubmittedCurrentQuestion = computed(() => {
   return (
@@ -62,20 +63,25 @@ async function checkExistingAnswer() {
 async function submitAnswer(answer) {
   if (submittingAnswer.value) return
 
+  submissionError.value = ''
   submittingAnswer.value = true
 
   try {
+    const questionId = gameStore.currentQuestion?.id
+
     const result = await gameStore.submitAnswer({
       userId: authStore.user.id,
       answer,
     })
 
     if (!result?.success) {
-      console.error(result?.error || 'Answer could not be submitted.')
+      submissionError.value =
+        result?.error || 'Your answer could not be submitted.'
+
       return
     }
 
-    submittedQuestionId.value = gameStore.currentQuestion.id
+    submittedQuestionId.value = questionId
   } finally {
     submittingAnswer.value = false
   }
@@ -132,6 +138,8 @@ watch(
         ) + 1
       "
       :total-questions="gameStore.currentRoundQuestions.length"
+      :submitting="submittingAnswer"
+      :error="submissionError"
       @submit="submitAnswer"
     />
 
