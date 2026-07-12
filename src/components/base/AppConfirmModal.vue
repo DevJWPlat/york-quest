@@ -44,6 +44,7 @@ defineEmits(['confirm', 'cancel'])
   background: rgba(0, 0, 0, 0.65);
 }
 
+
 .modal {
   width: 100%;
   max-width: 360px;
