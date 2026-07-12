@@ -100,10 +100,10 @@ export const useGameStore = defineStore('game', () => {
       }
     } catch (error) {
       console.error('Failed to submit answer:', error)
-  
+    
       return {
         success: false,
-        error: 'The answer could not be submitted. Please try again.',
+        error: error.message || 'The answer could not be submitted.',
       }
     }
   }
