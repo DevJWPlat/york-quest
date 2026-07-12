@@ -14,6 +14,7 @@ import AppButton from '@/components/base/AppButton.vue'
 import AppCard from '@/components/base/AppCard.vue'
 import AppConfirmModal from '@/components/base/AppConfirmModal.vue'
 import AdminMarkAnswersModal from '@/components/admin/AdminMarkAnswersModal.vue'
+import AdminRoundResultsModal from '@/components/admin/AdminRoundResultsModal.vue'
 
 import { useGameStore } from '@/stores/gameStore'
 import { users } from '@/data/users'
@@ -21,6 +22,8 @@ import { users } from '@/data/users'
 const gameStore = useGameStore()
 const showMarkAnswersModal = ref(false)
 const showEndRoundWarning = ref(false)
+const showUnmarkedWarning = ref(false)
+const showRoundResultsModal = ref(false)
 
 const players = computed(() => {
   return users.filter((user) => user.role === 'player')
@@ -124,12 +127,68 @@ const waitingPlayersMessage = computed(() => {
   return `${otherNames} and ${lastName} have not submitted answers yet. Are you sure you want to continue?`
 })
 
+const isLastQuestion = computed(() => {
+  if (!gameStore.currentQuestion) return false
+
+  const questions = gameStore.currentRoundQuestions
+  const currentIndex = questions.findIndex(
+    (question) => question.id === gameStore.currentQuestion.id,
+  )
+
+  return currentIndex === questions.length - 1
+})
+
+const currentRoundAnswers = computed(() => {
+  if (!gameStore.currentRound) return []
+
+  return gameStore.answers.filter(
+    (answer) => answer.roundId === gameStore.currentRound.id,
+  )
+})
+
+const unmarkedRoundAnswers = computed(() => {
+  return currentRoundAnswers.value.filter(
+    (answer) => answer.isCorrect === null,
+  )
+})
+
+const canViewRoundResults = computed(() => {
+  return (
+    currentRoundAnswers.value.length > 0 &&
+    unmarkedRoundAnswers.value.length === 0
+  )
+})
+
+const currentQuestionAnswers = computed(() => {
+  if (!gameStore.currentQuestion) return []
+
+  return gameStore.answers.filter(
+    (answer) => answer.questionId === gameStore.currentQuestion.id,
+  )
+})
+
+const unmarkedAnswers = computed(() => {
+  return currentQuestionAnswers.value.filter(
+    (answer) => answer.isCorrect === null,
+  )
+})
+
 function requestNextQuestion() {
   if (waitingPlayers.value.length > 0) {
     showNextQuestionWarning.value = true
     return
   }
 
+  if (unmarkedAnswers.value.length > 0) {
+    showUnmarkedWarning.value = true
+    return
+  }
+
+  gameStore.startNextQuestion()
+}
+
+function confirmContinueWithUnmarked() {
+  showUnmarkedWarning.value = false
   gameStore.startNextQuestion()
 }
 
@@ -144,6 +203,11 @@ function requestEndRound() {
 
 async function confirmEndRound() {
   showEndRoundWarning.value = false
+  await gameStore.endRound()
+}
+
+async function handleEndRoundFromResults() {
+  showRoundResultsModal.value = false
   await gameStore.endRound()
 }
 
@@ -219,8 +283,8 @@ watch(
 
         <AppButton
           v-else-if="
-            gameStore.gameState === 'submitted' ||
-            gameStore.gameState === 'question'
+            gameStore.gameState === 'question' &&
+            !isLastQuestion
           "
           full
           :class="{ glow: allAnswered }"
@@ -229,12 +293,26 @@ watch(
           Start Next Question
         </AppButton>
         <AppButton
+          v-else-if="
+            gameStore.gameState === 'question' &&
+            isLastQuestion
+          "
+          full
+          @click="openRoundResults"
+        >
+          View Round Results
+        </AppButton>
+        <AppButton
           v-if="gameStore.currentQuestion"
           variant="secondary"
           full
+          :class="{ glow: unmarkedAnswers.length > 0 }"
           @click="showMarkAnswersModal = true"
         >
           Mark Answers
+          <span v-if="unmarkedAnswers.length">
+            ({{ unmarkedAnswers.length }})
+          </span>
         </AppButton>
 
         <AppButton
@@ -321,6 +399,21 @@ watch(
     <AdminMarkAnswersModal
       :show="showMarkAnswersModal"
       @close="showMarkAnswersModal = false"
+    />
+    <AppConfirmModal
+      :show="showUnmarkedWarning"
+      title="Unmarked Answers"
+      :message="`${unmarkedAnswers.length} submitted answer${
+        unmarkedAnswers.length === 1 ? ' has' : 's have'
+      } not been marked. Are you sure you want to continue?`"
+      confirm-label="Continue"
+      @cancel="showUnmarkedWarning = false"
+      @confirm="confirmContinueWithUnmarked"
+    />
+    <AdminRoundResultsModal
+      :show="showRoundResultsModal"
+      @close="showRoundResultsModal = false"
+      @end-round="handleEndRoundFromResults"
     />
   </AdminShell>
 </template>
