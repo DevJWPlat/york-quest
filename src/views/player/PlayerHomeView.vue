@@ -1,5 +1,12 @@
 <script setup>
-import { onMounted, onUnmounted } from 'vue'
+import {
+  computed,
+  onMounted,
+  onUnmounted,
+  ref,
+  watch,
+} from 'vue'
+
 import PlayerShell from '@/components/layout/PlayerShell.vue'
 import WaitingScreen from '@/components/player/WaitingScreen.vue'
 import RoundIntroCard from '@/components/player/RoundIntroCard.vue'
@@ -14,26 +21,90 @@ import { useGameStore } from '@/stores/gameStore'
 const authStore = useAuthStore()
 const gameStore = useGameStore()
 
-function submitAnswer(answer) {
-  gameStore.submitAnswer({
-    userId: authStore.user.id,
-    answer,
-  })
+const submittedQuestionId = ref(null)
+const submittingAnswer = ref(false)
+
+const hasSubmittedCurrentQuestion = computed(() => {
+  return (
+    gameStore.currentQuestion &&
+    submittedQuestionId.value === gameStore.currentQuestion.id
+  )
+})
+
+async function checkExistingAnswer() {
+  if (!gameStore.currentQuestion || !authStore.user) {
+    submittedQuestionId.value = null
+    return
+  }
+
+  try {
+    const params = new URLSearchParams({
+      questionId: gameStore.currentQuestion.id,
+      userId: authStore.user.id,
+    })
+
+    const response = await fetch(`/api/answers?${params.toString()}`)
+
+    if (!response.ok) {
+      throw new Error('Unable to check submitted answer.')
+    }
+
+    const answers = await response.json()
+
+    submittedQuestionId.value = answers.length
+      ? gameStore.currentQuestion.id
+      : null
+  } catch (error) {
+    console.error('Failed to check existing answer:', error)
+  }
+}
+
+async function submitAnswer(answer) {
+  if (submittingAnswer.value) return
+
+  submittingAnswer.value = true
+
+  try {
+    const result = await gameStore.submitAnswer({
+      userId: authStore.user.id,
+      answer,
+    })
+
+    if (!result?.success) {
+      console.error(result?.error || 'Answer could not be submitted.')
+      return
+    }
+
+    submittedQuestionId.value = gameStore.currentQuestion.id
+  } finally {
+    submittingAnswer.value = false
+  }
 }
 
 let gameStateInterval
 
 onMounted(async () => {
   await gameStore.loadGameState()
+  await checkExistingAnswer()
 
-  gameStateInterval = setInterval(() => {
-    gameStore.loadGameState()
+  gameStateInterval = window.setInterval(async () => {
+    await gameStore.loadGameState()
   }, 2000)
 })
 
 onUnmounted(() => {
-  clearInterval(gameStateInterval)
+  window.clearInterval(gameStateInterval)
 })
+
+watch(
+  () => gameStore.activeQuestionId,
+  async (newQuestionId, previousQuestionId) => {
+    if (newQuestionId !== previousQuestionId) {
+      submittedQuestionId.value = null
+      await checkExistingAnswer()
+    }
+  },
+)
 </script>
 
 <template>
@@ -50,7 +121,10 @@ onUnmounted(() => {
     />
 
     <LiveQuestionCard
-      v-else-if="gameStore.gameState === 'question'"
+      v-else-if="
+        gameStore.gameState === 'question' &&
+        !hasSubmittedCurrentQuestion
+      "
       :question="gameStore.currentQuestion"
       :question-number="
         gameStore.currentRoundQuestions.findIndex(
@@ -59,6 +133,13 @@ onUnmounted(() => {
       "
       :total-questions="gameStore.currentRoundQuestions.length"
       @submit="submitAnswer"
+    />
+
+    <SubmittedScreen
+      v-else-if="
+        gameStore.gameState === 'question' &&
+        hasSubmittedCurrentQuestion
+      "
     />
 
     <SubmittedScreen v-else-if="gameStore.gameState === 'submitted'" />

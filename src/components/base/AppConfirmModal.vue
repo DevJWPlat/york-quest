@@ -5,6 +5,10 @@ defineProps({
   show: Boolean,
   title: String,
   message: String,
+  confirmLabel: {
+    type: String,
+    default: 'Confirm',
+  },
 })
 
 defineEmits(['confirm', 'cancel'])
@@ -22,8 +26,8 @@ defineEmits(['confirm', 'cancel'])
         </AppButton>
 
         <AppButton @click="$emit('confirm')">
-          Logout
-        </AppButton>
+        {{ confirmLabel }}
+      </AppButton>
       </div>
     </div>
   </div>

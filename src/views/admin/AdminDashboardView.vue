@@ -3,12 +3,16 @@ import {
   computed,
   onMounted,
   onUnmounted,
+  ref,
   watch,
 } from 'vue'
+
+
 
 import AdminShell from '@/components/layout/AdminShell.vue'
 import AppButton from '@/components/base/AppButton.vue'
 import AppCard from '@/components/base/AppCard.vue'
+import AppConfirmModal from '@/components/base/AppConfirmModal.vue'
 
 import { useGameStore } from '@/stores/gameStore'
 import { users } from '@/data/users'
@@ -93,6 +97,43 @@ async function refreshAnswers() {
   }
 }
 
+const showNextQuestionWarning = ref(false)
+
+const waitingPlayerNames = computed(() => {
+  return waitingPlayers.value.map((player) => player.name)
+})
+
+const waitingPlayersMessage = computed(() => {
+  const names = waitingPlayerNames.value
+
+  if (!names.length) {
+    return ''
+  }
+
+  if (names.length === 1) {
+    return `${names[0]} has not submitted an answer yet. Are you sure you want to continue?`
+  }
+
+  const lastName = names[names.length - 1]
+  const otherNames = names.slice(0, -1).join(', ')
+
+  return `${otherNames} and ${lastName} have not submitted answers yet. Are you sure you want to continue?`
+})
+
+function requestNextQuestion() {
+  if (waitingPlayers.value.length > 0) {
+    showNextQuestionWarning.value = true
+    return
+  }
+
+  gameStore.startNextQuestion()
+}
+
+function confirmNextQuestion() {
+  showNextQuestionWarning.value = false
+  gameStore.startNextQuestion()
+}
+
 onMounted(async () => {
   await refreshAnswers()
 
@@ -104,6 +145,7 @@ onMounted(async () => {
 onUnmounted(() => {
   window.clearInterval(answersInterval)
 })
+
 
 watch(
   () => gameStore.currentQuestion?.id,
@@ -152,10 +194,13 @@ watch(
         </AppButton>
 
         <AppButton
-          v-else-if="gameStore.gameState === 'submitted' || gameStore.gameState === 'question'"
+          v-else-if="
+            gameStore.gameState === 'submitted' ||
+            gameStore.gameState === 'question'
+          "
           full
           :class="{ glow: allAnswered }"
-          @click="gameStore.startNextQuestion()"
+          @click="requestNextQuestion"
         >
           Start Next Question
         </AppButton>
@@ -225,6 +270,14 @@ watch(
         </div>
       </div>
     </AppCard>
+    <AppConfirmModal
+      :show="showNextQuestionWarning"
+      title="Continue Without Everyone?"
+      :message="waitingPlayersMessage"
+      confirm-label="Continue"
+      @cancel="showNextQuestionWarning = false"
+      @confirm="confirmNextQuestion"
+    />
   </AdminShell>
 </template>
 

@@ -83,7 +83,7 @@ export const useGameStore = defineStore('game', () => {
   
       answers.value.push(data)
   
-      gameState.value = 'submitted'
+      
   
       return {
         success: true,
