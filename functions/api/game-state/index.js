@@ -40,6 +40,7 @@ function json(data, status = 200) {
         'roundIntro',
         'question',
         'roundComplete',
+        'leaderboard',
         'questComplete',
       ]
   
