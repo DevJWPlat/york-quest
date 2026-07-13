@@ -1,31 +1,57 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
-import { users } from '@/data/users'
 
 export const useAuthStore = defineStore('auth', () => {
   const user = ref(null)
   const error = ref('')
+  const loading = ref(false)
 
-  function login(username, password, loginMode = 'player') {
+  async function login(username, password) {
+    loading.value = true
     error.value = ''
-
-    const foundUser = users.find((item) => {
-      return (
-        item.username.toLowerCase() === username.toLowerCase() &&
-        item.password === password &&
-        item.role === loginMode
+  
+    try {
+      const response = await fetch('/api/login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          username,
+          password,
+        }),
+      })
+  
+      const data = await response.json()
+  
+      if (!response.ok || !data.success) {
+        throw new Error(
+          data.error || 'Unable to log in.',
+        )
+      }
+  
+      user.value = data.user
+  
+      localStorage.setItem(
+        'yorkQuestUser',
+        JSON.stringify(data.user),
       )
-    })
-
-    if (!foundUser) {
-      error.value = 'Login details are incorrect.'
-      return false
+  
+      return {
+        success: true,
+        user: data.user,
+      }
+    } catch (loginError) {
+      error.value =
+        loginError.message || 'Unable to log in.'
+  
+      return {
+        success: false,
+        error: error.value,
+      }
+    } finally {
+      loading.value = false
     }
-
-    user.value = foundUser
-    localStorage.setItem('yorkQuestUser', JSON.stringify(foundUser))
-
-    return true
   }
 
   function logout() {
@@ -45,9 +71,9 @@ export const useAuthStore = defineStore('auth', () => {
 
   return {
     user,
+    loading,
     error,
     login,
     logout,
-    loadUser,
   }
 })
