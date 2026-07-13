@@ -76,15 +76,6 @@ async function loadUsers() {
   }
 }
 
-function openAddPlayer() {
-  // We will connect this to the Add Player modal next.
-}
-
-function openPlayer(player) {
-  // We will connect this to the player details modal next.
-  console.log('Open player:', player)
-}
-
 onMounted(() => {
   loadUsers()
 })
