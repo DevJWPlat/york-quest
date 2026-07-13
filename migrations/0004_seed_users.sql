@@ -1,0 +1,29 @@
+-- Migration number: 0004 	 2026-07-13T20:38:40.966Z
+INSERT OR IGNORE INTO users (
+  id,
+  name,
+  username,
+  password,
+  role,
+  avatar,
+  is_active
+)
+VALUES
+  (
+    1,
+    'Elise',
+    'elise',
+    'admin-password',
+    'admin',
+    NULL,
+    1
+  ),
+  (
+    2,
+    'Jonny',
+    'jonny',
+    'player-password',
+    'player',
+    NULL,
+    1
+);
