@@ -15,9 +15,10 @@ import AdminMarkAnswersModal from '@/components/admin/AdminMarkAnswersModal.vue'
 import AdminRoundResultsModal from '@/components/admin/AdminRoundResultsModal.vue'
 
 import { useGameStore } from '@/stores/gameStore'
-import { users } from '@/data/users'
+import { useUsersStore } from '@/stores/usersStore'
 
 const gameStore = useGameStore()
+const usersStore = useUsersStore()
 
 const showMarkAnswersModal = ref(false)
 const showEndRoundWarning = ref(false)
@@ -25,7 +26,7 @@ const showRoundResultsModal = ref(false)
 const showNextQuestionWarning = ref(false)
 
 const players = computed(() => {
-  return users.filter((user) => user.role === 'player')
+  return usersStore.players
 })
 
 const submittedAnswers = computed(() => {
@@ -257,6 +258,7 @@ async function hideLeaderboardFromPlayers() {
 }
 
 onMounted(async () => {
+  await usersStore.loadUsers()
   await gameStore.loadGameState()
   await refreshAnswers()
 
