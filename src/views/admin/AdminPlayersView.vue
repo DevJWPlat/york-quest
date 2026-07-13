@@ -10,6 +10,7 @@ import AdminShell from '@/components/layout/AdminShell.vue'
 import AppButton from '@/components/base/AppButton.vue'
 import AppCard from '@/components/base/AppCard.vue'
 import AppAvatar from '@/components/base/AppAvatar.vue'
+import AdminPlayerModal from '@/components/admin/AdminPlayerModal.vue'
 
 const users = ref([])
 const loading = ref(true)
@@ -20,6 +21,34 @@ const players = computed(() => {
     (user) => user.role === 'player',
   )
 })
+
+const showPlayerModal = ref(false)
+const selectedPlayer = ref(null)
+
+function openAddPlayer() {
+  selectedPlayer.value = null
+  showPlayerModal.value = true
+}
+
+function openPlayer(player) {
+  selectedPlayer.value = player
+  showPlayerModal.value = true
+}
+
+function closePlayerModal() {
+  showPlayerModal.value = false
+  selectedPlayer.value = null
+}
+
+async function handlePlayerSaved() {
+  closePlayerModal()
+  await loadUsers()
+}
+
+async function handlePlayerDeleted() {
+  closePlayerModal()
+  await loadUsers()
+}
 
 async function loadUsers() {
   loading.value = true
@@ -161,6 +190,13 @@ onMounted(() => {
         </button>
       </div>
     </AppCard>
+    <AdminPlayerModal
+  :show="showPlayerModal"
+  :player="selectedPlayer"
+  @close="closePlayerModal"
+  @saved="handlePlayerSaved"
+  @deleted="handlePlayerDeleted"
+/>
   </AdminShell>
 </template>
 
