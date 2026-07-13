@@ -24,6 +24,7 @@ const showMarkAnswersModal = ref(false)
 const showEndRoundWarning = ref(false)
 const showUnmarkedWarning = ref(false)
 const showRoundResultsModal = ref(false)
+const showUnmarkedResultsWarning = ref(false)
 
 const players = computed(() => {
   return users.filter((user) => user.role === 'player')
@@ -151,6 +152,32 @@ const unmarkedRoundAnswers = computed(() => {
     (answer) => answer.isCorrect === null,
   )
 })
+
+async function openRoundResults() {
+  if (!gameStore.currentRound) return
+
+  await gameStore.loadAnswers({
+    roundId: gameStore.currentRound.id,
+  })
+
+  const unmarked = gameStore.answers.filter(
+    (answer) =>
+      answer.roundId === gameStore.currentRound.id &&
+      answer.isCorrect === null,
+  )
+
+  if (unmarked.length > 0) {
+    showUnmarkedResultsWarning.value = true
+    return
+  }
+
+  showRoundResultsModal.value = true
+}
+
+function openMarkingFromResultsWarning() {
+  showUnmarkedResultsWarning.value = false
+  showMarkAnswersModal.value = true
+}
 
 const canViewRoundResults = computed(() => {
   return (
@@ -293,7 +320,7 @@ watch(
           Start Next Question
         </AppButton>
         <AppButton
-          v-else-if="
+          v-if="
             gameStore.gameState === 'question' &&
             isLastQuestion
           "
@@ -414,6 +441,16 @@ watch(
       :show="showRoundResultsModal"
       @close="showRoundResultsModal = false"
       @end-round="handleEndRoundFromResults"
+    />
+    <AppConfirmModal
+      :show="showUnmarkedResultsWarning"
+      title="Unmarked Answers"
+      :message="`${unmarkedRoundAnswers.length} answer${
+        unmarkedRoundAnswers.length === 1 ? ' has' : 's have'
+      } not been marked yet.`"
+      confirm-label="Mark Answers"
+      @cancel="showUnmarkedResultsWarning = false"
+      @confirm="openMarkingFromResultsWarning"
     />
   </AdminShell>
 </template>
