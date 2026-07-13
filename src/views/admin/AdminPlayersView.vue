@@ -191,12 +191,12 @@ onMounted(() => {
       </div>
     </AppCard>
     <AdminPlayerModal
-  :show="showPlayerModal"
-  :player="selectedPlayer"
-  @close="closePlayerModal"
-  @saved="handlePlayerSaved"
-  @deleted="handlePlayerDeleted"
-/>
+      :show="showPlayerModal"
+      :player="selectedPlayer"
+      @close="closePlayerModal"
+      @saved="handlePlayerSaved"
+      @deleted="handlePlayerDeleted"
+    />
   </AdminShell>
 </template>
 
