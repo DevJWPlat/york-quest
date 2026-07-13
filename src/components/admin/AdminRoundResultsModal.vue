@@ -28,12 +28,14 @@ const players = computed(() => {
 })
 
 const roundScores = computed(() => {
+  const currentRoundId = Number(gameStore.currentRound?.id)
+
   return players.value
     .map((player) => {
-        const playerAnswers = roundAnswers.value.filter(
+      const playerAnswers = roundAnswers.value.filter(
         (answer) =>
-          answer.roundId === gameStore.currentRound?.id &&
-          answer.userId === player.id,
+          Number(answer.roundId) === currentRoundId &&
+          Number(answer.userId) === Number(player.id),
       )
 
       const points = playerAnswers.reduce((total, answer) => {
@@ -85,10 +87,13 @@ async function loadRoundResults() {
       throw new Error('Unable to load round answers.')
     }
 
-    roundAnswers.value = await response.json()
+    const data = await response.json()
+
+    roundAnswers.value = Array.isArray(data) ? data : []
   } catch (loadError) {
-    console.error(loadError)
+    console.error('Failed to load round results:', loadError)
     error.value = 'The round results could not be loaded.'
+    roundAnswers.value = []
   } finally {
     loading.value = false
   }
