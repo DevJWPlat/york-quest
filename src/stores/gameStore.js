@@ -371,6 +371,14 @@ export const useGameStore = defineStore('game', () => {
     await saveGameState()
   }
 
+  async function endQuest() {
+    activeRoundId.value = null
+    activeQuestionId.value = null
+    gameState.value = 'questComplete'
+  
+    await saveGameState()
+  }
+
   return {
     rounds,
     questions,
@@ -398,7 +406,6 @@ export const useGameStore = defineStore('game', () => {
     saveGameState,
     loadAnswers,
     endRound,
+    endQuest,
   }
-
-  
 })

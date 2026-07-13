@@ -244,6 +244,37 @@ async function handleResultsFromMarking() {
   await openRoundResults()
 }
 
+const currentRoundIndex = computed(() => {
+  if (!gameStore.currentRound) return -1
+
+  return gameStore.rounds.findIndex(
+    (round) => Number(round.id) === Number(gameStore.currentRound.id),
+  )
+})
+
+const nextRound = computed(() => {
+  if (currentRoundIndex.value === -1) return null
+
+  return gameStore.rounds[currentRoundIndex.value + 1] || null
+})
+
+const isFinalRound = computed(() => {
+  return (
+    gameStore.currentRound &&
+    currentRoundIndex.value === gameStore.rounds.length - 1
+  )
+})
+
+async function startNextRound() {
+  if (!nextRound.value) return
+
+  await gameStore.startRound(nextRound.value.id)
+}
+
+async function finishQuest() {
+  await gameStore.endQuest()
+}
+
 onMounted(async () => {
   // Restore the active round, question and game state from D1
   await gameStore.loadGameState()
@@ -349,12 +380,26 @@ watch(
         </AppButton>
 
         <AppButton
-          v-if="gameStore.gameState === 'roundComplete'"
-          full
-          @click="startNextAvailableRound"
-        >
-          Start Next Round
-        </AppButton>
+        v-if="
+          gameStore.gameState === 'roundComplete' &&
+          !isFinalRound
+        "
+        full
+        @click="startNextRound"
+      >
+        Start Next Round
+      </AppButton>
+
+      <AppButton
+        v-else-if="
+          gameStore.gameState === 'roundComplete' &&
+          isFinalRound
+        "
+        full
+        @click="finishQuest"
+      >
+        Finish Quest
+      </AppButton>
 
         <AppButton
           variant="dark"
