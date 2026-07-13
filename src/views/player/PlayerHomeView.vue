@@ -14,6 +14,7 @@ import LiveQuestionCard from '@/components/player/LiveQuestionCard.vue'
 import SubmittedScreen from '@/components/player/SubmittedScreen.vue'
 import RoundCompleteScreen from '@/components/player/RoundCompleteScreen.vue'
 import QuestCompleteScreen from '@/components/player/QuestCompleteScreen.vue'
+import PlayerLeaderboardScreen from '@/components/player/PlayerLeaderboardScreen.vue'
 
 import { useAuthStore } from '@/stores/authStore'
 import { useGameStore } from '@/stores/gameStore'
@@ -152,8 +153,14 @@ watch(
 
     <SubmittedScreen v-else-if="gameStore.gameState === 'submitted'" />
     <RoundCompleteScreen v-else-if="gameStore.gameState === 'roundComplete'" />
+      <PlayerLeaderboardScreen
+        v-else-if="gameStore.gameState === 'leaderboard'"
+      />
+
+      <QuestCompleteScreen
+        v-else-if="gameStore.gameState === 'questComplete'"
+      />
   
-    <QuestCompleteScreen v-else-if="gameStore.gameState === 'questComplete'" />
 
     <div class="dev-controls">
       <button @click="gameStore.startRound(1)">Start Round</button>

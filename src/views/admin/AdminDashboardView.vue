@@ -7,8 +7,6 @@ import {
   watch,
 } from 'vue'
 
-
-
 import AdminShell from '@/components/layout/AdminShell.vue'
 import AppButton from '@/components/base/AppButton.vue'
 import AppCard from '@/components/base/AppCard.vue'
@@ -20,46 +18,42 @@ import { useGameStore } from '@/stores/gameStore'
 import { users } from '@/data/users'
 
 const gameStore = useGameStore()
+
 const showMarkAnswersModal = ref(false)
 const showEndRoundWarning = ref(false)
 const showRoundResultsModal = ref(false)
-const showUnmarkedResultsWarning = ref(false)
+const showNextQuestionWarning = ref(false)
 
 const players = computed(() => {
   return users.filter((user) => user.role === 'player')
-})
-
-const currentQuestionNumber = computed(() => {
-  if (!gameStore.currentQuestion) return null
-
-  return (
-    gameStore.currentRoundQuestions.findIndex(
-      (question) => question.id === gameStore.currentQuestion.id,
-    ) + 1
-  )
 })
 
 const submittedAnswers = computed(() => {
   if (!gameStore.currentQuestion) return []
 
   return gameStore.answers.filter(
-    (answer) => answer.questionId === gameStore.currentQuestion.id,
+    (answer) =>
+      Number(answer.questionId) ===
+      Number(gameStore.currentQuestion.id),
   )
 })
 
 const submittedPlayerIds = computed(() => {
-  return submittedAnswers.value.map((answer) => answer.userId)
+  return submittedAnswers.value.map((answer) =>
+    Number(answer.userId),
+  )
 })
 
 const submittedPlayers = computed(() => {
   return players.value.filter((player) =>
-    submittedPlayerIds.value.includes(player.id),
+    submittedPlayerIds.value.includes(Number(player.id)),
   )
 })
 
 const waitingPlayers = computed(() => {
   return players.value.filter(
-    (player) => !submittedPlayerIds.value.includes(player.id),
+    (player) =>
+      !submittedPlayerIds.value.includes(Number(player.id)),
   )
 })
 
@@ -71,15 +65,80 @@ const allAnswered = computed(() => {
   )
 })
 
-function startNextAvailableRound() {
-  const nextRound = gameStore.rounds.find(
-    (round) => round.status !== 'completed',
+const currentQuestionAnswers = computed(() => {
+  if (!gameStore.currentQuestion) return []
+
+  return gameStore.answers.filter(
+    (answer) =>
+      Number(answer.questionId) ===
+      Number(gameStore.currentQuestion.id),
+  )
+})
+
+const unmarkedAnswers = computed(() => {
+  return currentQuestionAnswers.value.filter(
+    (answer) => answer.isCorrect === null,
+  )
+})
+
+const waitingPlayerNames = computed(() => {
+  return waitingPlayers.value.map((player) => player.name)
+})
+
+const waitingPlayersMessage = computed(() => {
+  const names = waitingPlayerNames.value
+
+  if (!names.length) return ''
+
+  if (names.length === 1) {
+    return `${names[0]} has not submitted an answer yet. Are you sure you want to continue?`
+  }
+
+  const lastName = names[names.length - 1]
+  const otherNames = names.slice(0, -1).join(', ')
+
+  return `${otherNames} and ${lastName} have not submitted answers yet. Are you sure you want to continue?`
+})
+
+const isLastQuestion = computed(() => {
+  if (!gameStore.currentQuestion) return false
+
+  const questions = gameStore.currentRoundQuestions
+
+  const currentIndex = questions.findIndex(
+    (question) =>
+      Number(question.id) ===
+      Number(gameStore.currentQuestion.id),
   )
 
-  if (!nextRound) return
+  return (
+    currentIndex !== -1 &&
+    currentIndex === questions.length - 1
+  )
+})
 
-  gameStore.startRound(nextRound.id)
-}
+const currentRoundIndex = computed(() => {
+  if (!gameStore.currentRound) return -1
+
+  return gameStore.rounds.findIndex(
+    (round) =>
+      Number(round.id) ===
+      Number(gameStore.currentRound.id),
+  )
+})
+
+const nextRound = computed(() => {
+  if (currentRoundIndex.value === -1) return null
+
+  return gameStore.rounds[currentRoundIndex.value + 1] || null
+})
+
+const isFinalRound = computed(() => {
+  return Boolean(
+    gameStore.currentRound &&
+      currentRoundIndex.value === gameStore.rounds.length - 1,
+  )
+})
 
 let answersInterval
 let gameStateInterval
@@ -104,107 +163,22 @@ async function refreshAnswers() {
   }
 }
 
-const showNextQuestionWarning = ref(false)
+function startFirstAvailableRound() {
+  const firstRound = gameStore.rounds[0]
 
-const waitingPlayerNames = computed(() => {
-  return waitingPlayers.value.map((player) => player.name)
-})
+  if (!firstRound) return
 
-const waitingPlayersMessage = computed(() => {
-  const names = waitingPlayerNames.value
-
-  if (!names.length) {
-    return ''
-  }
-
-  if (names.length === 1) {
-    return `${names[0]} has not submitted an answer yet. Are you sure you want to continue?`
-  }
-
-  const lastName = names[names.length - 1]
-  const otherNames = names.slice(0, -1).join(', ')
-
-  return `${otherNames} and ${lastName} have not submitted answers yet. Are you sure you want to continue?`
-})
-
-const isLastQuestion = computed(() => {
-  if (!gameStore.currentQuestion) return false
-
-  const questions = gameStore.currentRoundQuestions
-  const currentIndex = questions.findIndex(
-    (question) => question.id === gameStore.currentQuestion.id,
-  )
-
-  return currentIndex === questions.length - 1
-})
-
-const currentRoundAnswers = computed(() => {
-  if (!gameStore.currentRound) return []
-
-  return gameStore.answers.filter(
-    (answer) => answer.roundId === gameStore.currentRound.id,
-  )
-})
-
-const unmarkedRoundAnswers = computed(() => {
-  return currentRoundAnswers.value.filter(
-    (answer) => answer.isCorrect === null,
-  )
-})
-
-async function openRoundResults() {
-  if (!gameStore.currentRound) return
-
-  await gameStore.loadAnswers({
-    roundId: gameStore.currentRound.id,
-  })
-
-  const unmarked = gameStore.answers.filter(
-    (answer) =>
-      Number(answer.roundId) === Number(gameStore.currentRound.id) &&
-      answer.isCorrect === null,
-  )
-
-  if (unmarked.length > 0) {
-    showMarkAnswersModal.value = true
-    return
-  }
-
-  showRoundResultsModal.value = true
+  gameStore.startRound(firstRound.id)
 }
-
-function openMarkingFromResultsWarning() {
-  showUnmarkedResultsWarning.value = false
-  showMarkAnswersModal.value = true
-}
-
-const canViewRoundResults = computed(() => {
-  return (
-    currentRoundAnswers.value.length > 0 &&
-    unmarkedRoundAnswers.value.length === 0
-  )
-})
-
-const currentQuestionAnswers = computed(() => {
-  if (!gameStore.currentQuestion) return []
-
-  return gameStore.answers.filter(
-    (answer) => answer.questionId === gameStore.currentQuestion.id,
-  )
-})
-
-const unmarkedAnswers = computed(() => {
-  return currentQuestionAnswers.value.filter(
-    (answer) => answer.isCorrect === null,
-  )
-})
 
 function requestNextQuestion() {
+  // Submitted answers must always be marked first.
   if (unmarkedAnswers.value.length > 0) {
     showMarkAnswersModal.value = true
     return
   }
 
+  // Players who never submitted can still be skipped after confirmation.
   if (waitingPlayers.value.length > 0) {
     showNextQuestionWarning.value = true
     return
@@ -216,6 +190,28 @@ function requestNextQuestion() {
 function confirmNextQuestion() {
   showNextQuestionWarning.value = false
   gameStore.startNextQuestion()
+}
+
+async function openRoundResults() {
+  if (!gameStore.currentRound) return
+
+  await gameStore.loadAnswers({
+    roundId: gameStore.currentRound.id,
+  })
+
+  const unmarkedRoundAnswers = gameStore.answers.filter(
+    (answer) =>
+      Number(answer.roundId) ===
+        Number(gameStore.currentRound.id) &&
+      answer.isCorrect === null,
+  )
+
+  if (unmarkedRoundAnswers.length > 0) {
+    showMarkAnswersModal.value = true
+    return
+  }
+
+  showRoundResultsModal.value = true
 }
 
 function requestEndRound() {
@@ -234,36 +230,13 @@ async function handleEndRoundFromResults() {
 
 async function handleNextQuestionFromMarking() {
   showMarkAnswersModal.value = false
-
   await gameStore.startNextQuestion()
 }
 
 async function handleResultsFromMarking() {
   showMarkAnswersModal.value = false
-
   await openRoundResults()
 }
-
-const currentRoundIndex = computed(() => {
-  if (!gameStore.currentRound) return -1
-
-  return gameStore.rounds.findIndex(
-    (round) => Number(round.id) === Number(gameStore.currentRound.id),
-  )
-})
-
-const nextRound = computed(() => {
-  if (currentRoundIndex.value === -1) return null
-
-  return gameStore.rounds[currentRoundIndex.value + 1] || null
-})
-
-const isFinalRound = computed(() => {
-  return (
-    gameStore.currentRound &&
-    currentRoundIndex.value === gameStore.rounds.length - 1
-  )
-})
 
 async function startNextRound() {
   if (!nextRound.value) return
@@ -275,19 +248,22 @@ async function finishQuest() {
   await gameStore.endQuest()
 }
 
-onMounted(async () => {
-  // Restore the active round, question and game state from D1
-  await gameStore.loadGameState()
+async function showLeaderboardToPlayers() {
+  await gameStore.showLeaderboard()
+}
 
-  // Load answers for the active question
+async function hideLeaderboardFromPlayers() {
+  await gameStore.hideLeaderboard()
+}
+
+onMounted(async () => {
+  await gameStore.loadGameState()
   await refreshAnswers()
 
-  // Keep the admin game state synced
   gameStateInterval = window.setInterval(() => {
     gameStore.loadGameState()
   }, 2000)
 
-  // Keep submitted answers synced
   answersInterval = window.setInterval(() => {
     refreshAnswers()
   }, 2000)
@@ -297,7 +273,6 @@ onUnmounted(() => {
   window.clearInterval(gameStateInterval)
   window.clearInterval(answersInterval)
 })
-
 
 watch(
   () => gameStore.currentQuestion?.id,
@@ -330,84 +305,127 @@ watch(
     <AppCard class="admin-card">
       <small>Round Control</small>
 
+      <!-- No round has started yet -->
       <div v-if="!gameStore.currentRound" class="control-grid">
-        <AppButton full @click="startNextAvailableRound">
-          Start Next Round
+        <AppButton full @click="startFirstAvailableRound">
+          Start First Round
         </AppButton>
       </div>
 
       <div v-else class="control-grid">
-        <AppButton
-          v-if="gameStore.gameState === 'roundIntro'"
-          full
-          @click="gameStore.startNextQuestion()"
-        >
-          Start Question 1
-        </AppButton>
+        <!-- Round intro -->
+        <template v-if="gameStore.gameState === 'roundIntro'">
+          <AppButton
+            full
+            :disabled="!gameStore.currentRoundQuestions.length"
+            @click="gameStore.startNextQuestion()"
+          >
+            Start Question 1
+          </AppButton>
 
-        <AppButton
-          v-else-if="
-            gameStore.gameState === 'question' &&
-            !isLastQuestion
-          "
-          full
-          :class="{ glow: allAnswered }"
-          @click="requestNextQuestion"
-        >
-          Start Next Question
-        </AppButton>
-        <AppButton
-          v-if="
-            gameStore.gameState === 'question' &&
-            isLastQuestion
-          "
-          full
-          @click="openRoundResults"
-        >
-          View Round Results
-        </AppButton>
-        <AppButton
-          v-if="gameStore.currentQuestion"
-          variant="secondary"
-          full
-          :class="{ glow: unmarkedAnswers.length > 0 }"
-          @click="showMarkAnswersModal = true"
-        >
-          Mark Answers
-          <span v-if="unmarkedAnswers.length">
-            ({{ unmarkedAnswers.length }})
-          </span>
-        </AppButton>
+          <p v-if="!gameStore.currentRoundQuestions.length">
+            This round does not have any questions yet.
+          </p>
+        </template>
 
-        <AppButton
-        v-if="
-          gameStore.gameState === 'roundComplete' &&
-          !isFinalRound
-        "
-        full
-        @click="startNextRound"
-      >
-        Start Next Round
-      </AppButton>
+        <!-- Live question -->
+        <template v-else-if="gameStore.gameState === 'question'">
+          <AppButton
+            v-if="!isLastQuestion"
+            full
+            :class="{ glow: allAnswered }"
+            @click="requestNextQuestion"
+          >
+            Start Next Question
+          </AppButton>
 
-      <AppButton
-        v-else-if="
-          gameStore.gameState === 'roundComplete' &&
-          isFinalRound
-        "
-        full
-        @click="finishQuest"
-      >
-        Finish Quest
-      </AppButton>
+          <AppButton
+            v-else
+            full
+            @click="openRoundResults"
+          >
+            View Round Results
+          </AppButton>
 
-        <AppButton
-          variant="dark"
-          full
-          @click="requestEndRound"
-        >
-          End Round
-        </AppButton>
+          <AppButton
+            variant="secondary"
+            full
+            :class="{ glow: unmarkedAnswers.length > 0 }"
+            @click="showMarkAnswersModal = true"
+          >
+            Mark Answers
+            <span v-if="unmarkedAnswers.length">
+              ({{ unmarkedAnswers.length }})
+            </span>
+          </AppButton>
+
+          <AppButton
+            variant="dark"
+            full
+            @click="requestEndRound"
+          >
+            End Round
+          </AppButton>
+        </template>
+
+        <!-- Players are on the round-complete screen -->
+        <template v-else-if="gameStore.gameState === 'roundComplete'">
+          <AppButton
+            variant="secondary"
+            full
+            @click="showLeaderboardToPlayers"
+          >
+            Show Leaderboard to Players
+          </AppButton>
+
+          <AppButton
+            v-if="!isFinalRound"
+            full
+            @click="startNextRound"
+          >
+            Start Next Round
+          </AppButton>
+
+          <AppButton
+            v-else
+            full
+            @click="finishQuest"
+          >
+            Finish Quest
+          </AppButton>
+        </template>
+
+        <!-- Players are currently viewing the leaderboard -->
+        <template v-else-if="gameStore.gameState === 'leaderboard'">
+          <AppButton
+            variant="secondary"
+            full
+            @click="hideLeaderboardFromPlayers"
+          >
+            Hide Leaderboard
+          </AppButton>
+
+          <AppButton
+            v-if="!isFinalRound"
+            full
+            @click="startNextRound"
+          >
+            Start Next Round
+          </AppButton>
+
+          <AppButton
+            v-else
+            full
+            @click="finishQuest"
+          >
+            Finish Quest
+          </AppButton>
+        </template>
+
+        <!-- Quest has finished -->
+        <template v-else-if="gameStore.gameState === 'questComplete'">
+          <p>The quest has been completed.</p>
+        </template>
       </div>
     </AppCard>
 
