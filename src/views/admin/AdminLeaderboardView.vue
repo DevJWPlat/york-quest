@@ -1,57 +1,152 @@
 <script setup>
-import { computed } from 'vue'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
 
 import AdminShell from '@/components/layout/AdminShell.vue'
 import AppCard from '@/components/base/AppCard.vue'
+import AppAvatar from '@/components/base/AppAvatar.vue'
 
-import { useGameStore } from '@/stores/gameStore'
 import { users } from '@/data/users'
 
-const gameStore = useGameStore()
+const leaderboardData = ref([])
+const loading = ref(true)
+const error = ref('')
+
+let leaderboardInterval
+
+const players = computed(() => {
+  return users.filter((user) => user.role === 'player')
+})
 
 const leaderboard = computed(() => {
-  return users
-    .filter((user) => user.role === 'player')
-    .map((user) => {
-      const userAnswers = gameStore.answers.filter((answer) => answer.userId === user.id)
+  const scoresByUserId = new Map(
+    leaderboardData.value.map((score) => [
+      Number(score.userId),
+      score,
+    ]),
+  )
 
-      const points = userAnswers.reduce((total, answer) => {
-        return total + Number(answer.pointsAwarded || 0)
-      }, 0)
-
-      const correct = userAnswers.filter((answer) => answer.isCorrect === true).length
+  const sortedPlayers = players.value
+    .map((player) => {
+      const score = scoresByUserId.get(Number(player.id))
 
       return {
-        ...user,
-        points,
-        correct,
-        answered: userAnswers.length,
+        ...player,
+        totalPoints: Number(score?.totalPoints || 0),
+        answered: Number(score?.answered || 0),
+        correctAnswers: Number(score?.correctAnswers || 0),
       }
     })
-    .sort((a, b) => b.points - a.points)
+    .sort((a, b) => {
+      if (b.totalPoints !== a.totalPoints) {
+        return b.totalPoints - a.totalPoints
+      }
+
+      if (b.correctAnswers !== a.correctAnswers) {
+        return b.correctAnswers - a.correctAnswers
+      }
+
+      return a.name.localeCompare(b.name)
+    })
+
+  let previousPoints = null
+  let previousCorrect = null
+  let previousPosition = 0
+
+  return sortedPlayers.map((player, index) => {
+    const isTiedWithPrevious =
+      player.totalPoints === previousPoints &&
+      player.correctAnswers === previousCorrect
+
+    const position = isTiedWithPrevious
+      ? previousPosition
+      : index + 1
+
+    previousPoints = player.totalPoints
+    previousCorrect = player.correctAnswers
+    previousPosition = position
+
+    return {
+      ...player,
+      position,
+    }
+  })
+})
+
+async function loadLeaderboard() {
+  try {
+    const response = await fetch('/api/leaderboard')
+
+    if (!response.ok) {
+      throw new Error('Unable to load leaderboard.')
+    }
+
+    const data = await response.json()
+
+    leaderboardData.value = Array.isArray(data) ? data : []
+    error.value = ''
+  } catch (loadError) {
+    console.error('Failed to load leaderboard:', loadError)
+    error.value = 'The leaderboard could not be loaded.'
+  } finally {
+    loading.value = false
+  }
+}
+
+onMounted(async () => {
+  await loadLeaderboard()
+
+  leaderboardInterval = window.setInterval(() => {
+    loadLeaderboard()
+  }, 5000)
+})
+
+onUnmounted(() => {
+  window.clearInterval(leaderboardInterval)
 })
 </script>
 
 <template>
   <AdminShell>
     <AppCard class="admin-card">
-      <small>Leaderboard</small>
+      <small>Overall Scores</small>
 
-      <div class="leaderboard-list">
-        <div
-          v-for="(player, index) in leaderboard"
+      <div v-if="loading" class="state-message">
+        Loading leaderboard...
+      </div>
+
+      <div v-else-if="error" class="error-message">
+        {{ error }}
+      </div>
+
+      <div v-else class="leaderboard-list">
+        <article
+          v-for="player in leaderboard"
           :key="player.id"
           class="leaderboard-row"
         >
-          <span class="position">#{{ index + 1 }}</span>
+          <span class="position">
+            #{{ player.position }}
+          </span>
 
-          <div>
+          <AppAvatar
+            :name="player.name"
+            :image="player.avatar"
+            size="sm"
+          />
+
+          <div class="player-details">
             <strong>{{ player.name }}</strong>
-            <p>{{ player.correct }} correct · {{ player.answered }} answered</p>
+
+            <p>
+              {{ player.correctAnswers }} correct ·
+              {{ player.answered }} answered
+            </p>
           </div>
 
-          <strong class="points">{{ player.points }}</strong>
-        </div>
+          <strong class="points">
+            {{ player.totalPoints }}
+          </strong>
+        </article>
       </div>
     </AppCard>
   </AdminShell>
@@ -64,22 +159,23 @@ const leaderboard = computed(() => {
 
 small {
   display: block;
-  margin-bottom: 12px;
+  margin-bottom: 14px;
   color: var(--gold);
   font-weight: 800;
+  letter-spacing: 0.1em;
   text-transform: uppercase;
 }
 
 .leaderboard-list {
   display: grid;
-  gap: 12px;
+  gap: 10px;
 }
 
 .leaderboard-row {
   display: grid;
-  grid-template-columns: auto 1fr auto;
+  grid-template-columns: 40px auto 1fr auto;
   align-items: center;
-  gap: 14px;
+  gap: 12px;
   padding: 14px;
   border: 1px solid var(--border);
   border-radius: 14px;
@@ -91,14 +187,39 @@ small {
   font-weight: 800;
 }
 
-p {
+.player-details {
+  min-width: 0;
+}
+
+.player-details strong {
+  color: var(--cream);
+}
+
+.player-details p {
   margin: 4px 0 0;
   color: var(--muted);
-  font-size: 13px;
+  font-size: 12px;
 }
 
 .points {
   color: var(--gold-light);
-  font-size: 22px;
+  font-size: 23px;
+}
+
+.state-message,
+.error-message {
+  padding: 18px;
+  border-radius: 14px;
+  text-align: center;
+}
+
+.state-message {
+  color: var(--muted);
+  background: var(--card);
+}
+
+.error-message {
+  color: #f2a0a0;
+  background: rgba(179, 71, 71, 0.12);
 }
 </style>
