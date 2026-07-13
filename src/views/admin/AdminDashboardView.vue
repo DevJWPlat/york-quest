@@ -162,12 +162,12 @@ async function openRoundResults() {
 
   const unmarked = gameStore.answers.filter(
     (answer) =>
-      answer.roundId === gameStore.currentRound.id &&
+      Number(answer.roundId) === Number(gameStore.currentRound.id) &&
       answer.isCorrect === null,
   )
 
   if (unmarked.length > 0) {
-    showUnmarkedResultsWarning.value = true
+    showMarkAnswersModal.value = true
     return
   }
 
@@ -201,13 +201,13 @@ const unmarkedAnswers = computed(() => {
 })
 
 function requestNextQuestion() {
-  if (waitingPlayers.value.length > 0) {
-    showNextQuestionWarning.value = true
+  if (unmarkedAnswers.value.length > 0) {
+    showMarkAnswersModal.value = true
     return
   }
 
-  if (unmarkedAnswers.value.length > 0) {
-    showUnmarkedWarning.value = true
+  if (waitingPlayers.value.length > 0) {
+    showNextQuestionWarning.value = true
     return
   }
 
