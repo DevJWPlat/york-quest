@@ -14,6 +14,8 @@ const props = defineProps({
   },
 })
 
+const roundAnswers = ref([])
+
 const emit = defineEmits(['close', 'end-round'])
 
 const gameStore = useGameStore()
@@ -28,7 +30,7 @@ const players = computed(() => {
 const roundScores = computed(() => {
   return players.value
     .map((player) => {
-      const playerAnswers = gameStore.answers.filter(
+        const playerAnswers = roundAnswers.value.filter(
         (answer) =>
           answer.roundId === gameStore.currentRound?.id &&
           answer.userId === player.id,
@@ -75,9 +77,15 @@ async function loadRoundResults() {
   error.value = ''
 
   try {
-    await gameStore.loadAnswers({
-      roundId: gameStore.currentRound.id,
-    })
+    const response = await fetch(
+      `/api/answers?roundId=${gameStore.currentRound.id}`,
+    )
+
+    if (!response.ok) {
+      throw new Error('Unable to load round answers.')
+    }
+
+    roundAnswers.value = await response.json()
   } catch (loadError) {
     console.error(loadError)
     error.value = 'The round results could not be loaded.'
