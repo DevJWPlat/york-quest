@@ -22,7 +22,6 @@ import { users } from '@/data/users'
 const gameStore = useGameStore()
 const showMarkAnswersModal = ref(false)
 const showEndRoundWarning = ref(false)
-const showUnmarkedWarning = ref(false)
 const showRoundResultsModal = ref(false)
 const showUnmarkedResultsWarning = ref(false)
 
@@ -211,11 +210,6 @@ function requestNextQuestion() {
     return
   }
 
-  gameStore.startNextQuestion()
-}
-
-function confirmContinueWithUnmarked() {
-  showUnmarkedWarning.value = false
   gameStore.startNextQuestion()
 }
 
@@ -427,30 +421,10 @@ watch(
       :show="showMarkAnswersModal"
       @close="showMarkAnswersModal = false"
     />
-    <AppConfirmModal
-      :show="showUnmarkedWarning"
-      title="Unmarked Answers"
-      :message="`${unmarkedAnswers.length} submitted answer${
-        unmarkedAnswers.length === 1 ? ' has' : 's have'
-      } not been marked. Are you sure you want to continue?`"
-      confirm-label="Continue"
-      @cancel="showUnmarkedWarning = false"
-      @confirm="confirmContinueWithUnmarked"
-    />
     <AdminRoundResultsModal
       :show="showRoundResultsModal"
       @close="showRoundResultsModal = false"
       @end-round="handleEndRoundFromResults"
-    />
-    <AppConfirmModal
-      :show="showUnmarkedResultsWarning"
-      title="Unmarked Answers"
-      :message="`${unmarkedRoundAnswers.length} answer${
-        unmarkedRoundAnswers.length === 1 ? ' has' : 's have'
-      } not been marked yet.`"
-      confirm-label="Mark Answers"
-      @cancel="showUnmarkedResultsWarning = false"
-      @confirm="openMarkingFromResultsWarning"
     />
   </AdminShell>
 </template>
