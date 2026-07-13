@@ -5,16 +5,17 @@ import AdminShell from '@/components/layout/AdminShell.vue'
 import AppCard from '@/components/base/AppCard.vue'
 import AppAvatar from '@/components/base/AppAvatar.vue'
 
-import { users } from '@/data/users'
+import { useUsersStore } from '@/stores/usersStore'
 
 const leaderboardData = ref([])
 const loading = ref(true)
 const error = ref('')
 
 let leaderboardInterval
+const usersStore = useUsersStore()
 
 const players = computed(() => {
-  return users.filter((user) => user.role === 'player')
+  return usersStore.players
 })
 
 const leaderboard = computed(() => {
@@ -93,6 +94,7 @@ async function loadLeaderboard() {
 }
 
 onMounted(async () => {
+  await usersStore.loadUsers()
   await loadLeaderboard()
 
   leaderboardInterval = window.setInterval(() => {

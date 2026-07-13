@@ -3,8 +3,8 @@ import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { Trophy } from 'lucide-vue-next'
 
 import AppAvatar from '@/components/base/AppAvatar.vue'
-import { users } from '@/data/users'
-
+import { useUsersStore } from '@/stores/usersStore'
+const usersStore = useUsersStore()
 const leaderboardData = ref([])
 const loading = ref(true)
 const error = ref('')
@@ -12,7 +12,7 @@ const error = ref('')
 let leaderboardInterval
 
 const players = computed(() => {
-  return users.filter((user) => user.role === 'player')
+  return usersStore.players
 })
 
 const leaderboard = computed(() => {
@@ -90,11 +90,12 @@ async function loadLeaderboard() {
 }
 
 onMounted(async () => {
-  await loadLeaderboard()
+    await usersStore.loadUsers()
+    await loadLeaderboard()
 
-  leaderboardInterval = window.setInterval(() => {
-    loadLeaderboard()
-  }, 5000)
+    leaderboardInterval = window.setInterval(() => {
+        loadLeaderboard()
+    }, 5000)
 })
 
 onUnmounted(() => {

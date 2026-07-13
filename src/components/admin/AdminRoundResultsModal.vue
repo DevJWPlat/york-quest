@@ -5,7 +5,9 @@ import { Trophy, Beer } from 'lucide-vue-next'
 import AppAvatar from '@/components/base/AppAvatar.vue'
 import AppButton from '@/components/base/AppButton.vue'
 import { useGameStore } from '@/stores/gameStore'
-import { users } from '@/data/users'
+import { useUsersStore } from '@/stores/usersStore'
+
+const usersStore = useUsersStore()
 
 const props = defineProps({
   show: {
@@ -24,7 +26,7 @@ const loading = ref(false)
 const error = ref('')
 
 const players = computed(() => {
-  return users.filter((user) => user.role === 'player')
+  return usersStore.players
 })
 
 const roundScores = computed(() => {
@@ -102,9 +104,10 @@ async function loadRoundResults() {
 watch(
   () => props.show,
   async (isOpen) => {
-    if (isOpen) {
-      await loadRoundResults()
-    }
+    if (!isOpen) return
+
+    await usersStore.loadUsers()
+    await loadRoundResults()
   },
 )
 </script>
