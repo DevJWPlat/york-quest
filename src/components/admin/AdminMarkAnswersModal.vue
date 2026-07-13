@@ -6,7 +6,7 @@ import AppAvatar from '@/components/base/AppAvatar.vue'
 import AppButton from '@/components/base/AppButton.vue'
 
 import { useGameStore } from '@/stores/gameStore'
-import { users } from '@/data/users'
+import { useUsersStore } from '@/stores/usersStore'
 
 const props = defineProps({
   show: {
@@ -22,20 +22,23 @@ const emit = defineEmits([
 ])
 
 const gameStore = useGameStore()
+const usersStore = useUsersStore()
 
 const loading = ref(false)
 const markingAnswerId = ref(null)
 const error = ref('')
 
 const playerUsers = computed(() => {
-  return users.filter((user) => user.role === 'player')
+  return usersStore.players
 })
 
 const currentAnswers = computed(() => {
   if (!gameStore.currentQuestion) return []
 
   return gameStore.answers.filter(
-    (answer) => answer.questionId === gameStore.currentQuestion.id,
+    (answer) =>
+      Number(answer.questionId) ===
+      Number(gameStore.currentQuestion.id),
   )
 })
 
@@ -45,52 +48,11 @@ const markedCount = computed(() => {
   ).length
 })
 
-function getPlayer(userId) {
-  return playerUsers.value.find((player) => player.id === userId)
-}
-
-function isMarkedCorrect(answer) {
-  return answer.isCorrect === true || answer.isCorrect === 1
-}
-
-function isMarkedWrong(answer) {
-  return answer.isCorrect === false || answer.isCorrect === 0
-}
-
-async function loadAnswers() {
-  if (!gameStore.currentQuestion) return
-
-  loading.value = true
-  error.value = ''
-
-  try {
-    await gameStore.loadAnswers({
-      questionId: gameStore.currentQuestion.id,
-    })
-  } catch {
-    error.value = 'The answers could not be loaded.'
-  } finally {
-    loading.value = false
-  }
-}
-
-async function markAnswer(answer, isCorrect) {
-  if (markingAnswerId.value) return
-
-  markingAnswerId.value = answer.id
-  error.value = ''
-
-  const result = await gameStore.markAnswer(answer.id, isCorrect)
-
-  if (!result?.success) {
-    error.value = result?.error || 'The answer could not be marked.'
-  }
-
-  markingAnswerId.value = null
-}
-
 const allPlayersAnswered = computed(() => {
-  return currentAnswers.value.length === playerUsers.value.length
+  return (
+    playerUsers.value.length > 0 &&
+    currentAnswers.value.length === playerUsers.value.length
+  )
 })
 
 const allAnswersMarked = computed(() => {
@@ -123,6 +85,57 @@ const isLastQuestion = computed(() => {
   )
 })
 
+function getPlayer(userId) {
+  return usersStore.getUserById(userId)
+}
+
+function isMarkedCorrect(answer) {
+  return answer.isCorrect === true || answer.isCorrect === 1
+}
+
+function isMarkedWrong(answer) {
+  return answer.isCorrect === false || answer.isCorrect === 0
+}
+
+async function loadAnswers() {
+  if (!gameStore.currentQuestion) return
+
+  loading.value = true
+  error.value = ''
+
+  try {
+    await gameStore.loadAnswers({
+      questionId: gameStore.currentQuestion.id,
+    })
+  } catch (loadError) {
+    console.error('Failed to load answers:', loadError)
+    error.value = 'The answers could not be loaded.'
+  } finally {
+    loading.value = false
+  }
+}
+
+async function markAnswer(answer, isCorrect) {
+  if (markingAnswerId.value) return
+
+  markingAnswerId.value = answer.id
+  error.value = ''
+
+  try {
+    const result = await gameStore.markAnswer(
+      answer.id,
+      isCorrect,
+    )
+
+    if (!result?.success) {
+      error.value =
+        result?.error || 'The answer could not be marked.'
+    }
+  } finally {
+    markingAnswerId.value = null
+  }
+}
+
 function handleMainAction() {
   if (!canContinue.value) {
     emit('close')
@@ -144,9 +157,10 @@ function closeModal() {
 watch(
   () => props.show,
   async (isOpen) => {
-    if (isOpen) {
-      await loadAnswers()
-    }
+    if (!isOpen) return
+
+    await usersStore.loadUsers()
+    await loadAnswers()
   },
 )
 </script>
