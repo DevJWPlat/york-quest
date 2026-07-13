@@ -232,6 +232,18 @@ async function handleEndRoundFromResults() {
   await gameStore.endRound()
 }
 
+async function handleNextQuestionFromMarking() {
+  showMarkAnswersModal.value = false
+
+  await gameStore.startNextQuestion()
+}
+
+async function handleResultsFromMarking() {
+  showMarkAnswersModal.value = false
+
+  await openRoundResults()
+}
+
 onMounted(async () => {
   // Restore the active round, question and game state from D1
   await gameStore.loadGameState()
@@ -420,6 +432,8 @@ watch(
     <AdminMarkAnswersModal
       :show="showMarkAnswersModal"
       @close="showMarkAnswersModal = false"
+      @start-next-question="handleNextQuestionFromMarking"
+      @view-round-results="handleResultsFromMarking"
     />
     <AdminRoundResultsModal
       :show="showRoundResultsModal"

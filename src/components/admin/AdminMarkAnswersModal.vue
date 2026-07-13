@@ -15,7 +15,11 @@ const props = defineProps({
   },
 })
 
-const emit = defineEmits(['close'])
+const emit = defineEmits([
+  'close',
+  'start-next-question',
+  'view-round-results',
+])
 
 const gameStore = useGameStore()
 
@@ -83,6 +87,54 @@ async function markAnswer(answer, isCorrect) {
   }
 
   markingAnswerId.value = null
+}
+
+const allPlayersAnswered = computed(() => {
+  return currentAnswers.value.length === playerUsers.value.length
+})
+
+const allAnswersMarked = computed(() => {
+  return (
+    currentAnswers.value.length > 0 &&
+    currentAnswers.value.every(
+      (answer) => answer.isCorrect !== null,
+    )
+  )
+})
+
+const canContinue = computed(() => {
+  return allPlayersAnswered.value && allAnswersMarked.value
+})
+
+const isLastQuestion = computed(() => {
+  if (!gameStore.currentQuestion) return false
+
+  const currentQuestionIndex =
+    gameStore.currentRoundQuestions.findIndex(
+      (question) =>
+        Number(question.id) ===
+        Number(gameStore.currentQuestion.id),
+    )
+
+  return (
+    currentQuestionIndex !== -1 &&
+    currentQuestionIndex ===
+      gameStore.currentRoundQuestions.length - 1
+  )
+})
+
+function handleMainAction() {
+  if (!canContinue.value) {
+    emit('close')
+    return
+  }
+
+  if (isLastQuestion.value) {
+    emit('view-round-results')
+    return
+  }
+
+  emit('start-next-question')
 }
 
 function closeModal() {
@@ -201,10 +253,23 @@ watch(
           </div>
 
           <footer class="modal-footer">
-            <AppButton full @click="closeModal">
-              Save Changes
-            </AppButton>
-          </footer>
+                <AppButton
+                    full
+                    @click="handleMainAction"
+                >
+                    <template v-if="canContinue">
+                    {{
+                        isLastQuestion
+                        ? 'View Round Results'
+                        : 'Start Next Question'
+                    }}
+                    </template>
+
+                    <template v-else>
+                    Save Changes
+                    </template>
+                </AppButton>
+            </footer>
         </section>
       </div>
     </Transition>
