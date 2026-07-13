@@ -212,6 +212,10 @@ onMounted(() => {
 .add-button {
   width: auto;
   flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
 }
 
 .player-grid {
@@ -343,6 +347,10 @@ onMounted(() => {
 
   .add-button {
     width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
   }
 
   .player-card {
