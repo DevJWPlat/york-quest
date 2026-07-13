@@ -36,14 +36,28 @@ export const useGameStore = defineStore('game', () => {
   })
 
   async function startRound(roundId) {
+    const previousRoundId = activeRoundId.value
+  
+    if (previousRoundId) {
+      rounds.value = rounds.value.map((round) => ({
+        ...round,
+        status:
+          round.id === previousRoundId
+            ? 'completed'
+            : round.id === roundId
+              ? 'live'
+              : round.status,
+      }))
+    } else {
+      rounds.value = rounds.value.map((round) => ({
+        ...round,
+        status: round.id === roundId ? 'live' : round.status,
+      }))
+    }
+  
     activeRoundId.value = roundId
     activeQuestionId.value = null
     gameState.value = 'roundIntro'
-  
-    rounds.value = rounds.value.map((round) => ({
-      ...round,
-      status: round.id === roundId ? 'live' : round.status,
-    }))
   
     await saveGameState()
   }

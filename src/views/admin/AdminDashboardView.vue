@@ -349,11 +349,11 @@ watch(
         </AppButton>
 
         <AppButton
-          v-else-if="gameStore.gameState === 'roundComplete'"
+          v-if="gameStore.gameState === 'roundComplete'"
           full
-          @click="gameStore.completeRound()"
+          @click="startNextAvailableRound"
         >
-          Return Players to Waiting
+          Start Next Round
         </AppButton>
 
         <AppButton
