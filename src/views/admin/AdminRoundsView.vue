@@ -61,13 +61,34 @@ const selectedQuestions = computed(() => {
   )
 })
 
+const selectedRoundIndex = computed(() => {
+  return roundsStore.allRounds.findIndex(
+    (round) =>
+      Number(round.id) ===
+      Number(selectedRoundId.value),
+  )
+})
+
+const canMoveRoundUp = computed(() => {
+  return selectedRoundIndex.value > 0
+})
+
+const canMoveRoundDown = computed(() => {
+  return (
+    selectedRoundIndex.value !== -1 &&
+    selectedRoundIndex.value <
+      roundsStore.allRounds.length - 1
+  )
+})
+
 const isEditingQuestion = computed(() => {
   return editingQuestionId.value !== null
 })
 
 function roundLabel(round) {
   const roundIndex = roundsStore.allRounds.findIndex(
-    (item) => Number(item.id) === Number(round.id),
+    (item) =>
+      Number(item.id) === Number(round.id),
   )
 
   return `Pub ${roundIndex + 1}`
@@ -350,6 +371,50 @@ async function removeQuestion(question) {
   }
 }
 
+async function moveSelectedRound(direction) {
+  if (!selectedRound.value) return
+
+  clearMessages()
+
+  try {
+    const moved = await roundsStore.moveRound(
+      selectedRound.value.id,
+      direction,
+    )
+
+    if (moved) {
+      successMessage.value =
+        'Round order updated successfully.'
+    }
+  } catch (error) {
+    showError(
+      error,
+      'Unable to reorder the round.',
+    )
+  }
+}
+
+async function moveQuestion(question, direction) {
+  clearMessages()
+
+  try {
+    const moved = await roundsStore.moveQuestion(
+      question.id,
+      direction,
+    )
+
+    if (moved) {
+      successMessage.value =
+        'Question order updated successfully.'
+    }
+  } catch (error) {
+    showError(
+      error,
+      'Unable to reorder the question.',
+    )
+  }
+}
+
 onMounted(async () => {
   clearMessages()
 
@@ -498,6 +563,30 @@ onMounted(async () => {
                         ? 'Save Round'
                         : 'Add Round'
                   }}
+                </AppButton>
+
+                <AppButton
+                  v-if="selectedRound"
+                  variant="dark"
+                  :disabled="
+                    roundsStore.isSaving ||
+                    !canMoveRoundUp
+                  "
+                  @click="moveSelectedRound('up')"
+                >
+                  Move Up
+                </AppButton>
+
+                <AppButton
+                  v-if="selectedRound"
+                  variant="dark"
+                  :disabled="
+                    roundsStore.isSaving ||
+                    !canMoveRoundDown
+                  "
+                  @click="moveSelectedRound('down')"
+                >
+                  Move Down
                 </AppButton>
 
                 <AppButton
@@ -745,6 +834,33 @@ onMounted(async () => {
               <div class="question-actions">
                 <AppButton
                   variant="dark"
+                  :disabled="
+                    roundsStore.isSaving ||
+                    questionIndex === 0
+                  "
+                  @click="
+                    moveQuestion(question, 'up')
+                  "
+                >
+                  Up
+                </AppButton>
+
+                <AppButton
+                  variant="dark"
+                  :disabled="
+                    roundsStore.isSaving ||
+                    questionIndex ===
+                      selectedQuestions.length - 1
+                  "
+                  @click="
+                    moveQuestion(question, 'down')
+                  "
+                >
+                  Down
+                </AppButton>
+
+                <AppButton
+                  variant="dark"
                   :disabled="roundsStore.isSaving"
                   @click="editQuestion(question)"
                 >
@@ -970,6 +1086,7 @@ textarea:focus {
 
 .question-actions {
   justify-content: flex-start;
+  flex-wrap: wrap;
 }
 
 .status-badge {
@@ -1051,6 +1168,10 @@ textarea:focus {
 
   .question-heading {
     align-items: flex-start;
+  }
+
+  .question-actions > * {
+    flex: 1 1 calc(50% - 7px);
   }
 }
 </style>

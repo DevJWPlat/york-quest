@@ -14,7 +14,7 @@ defineProps({
     <img :src="logo" alt="York Quest Logo" class="logo-image">
 
     <small v-if="mode === 'admin'">
-      Tap logo to return to player login
+      Tap the logo to return to player login
     </small>
     <small v-if="mode === 'player'">
         A historic pub crawl quiz adventure

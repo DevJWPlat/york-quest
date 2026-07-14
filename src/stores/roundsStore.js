@@ -279,6 +279,285 @@ export const useRoundsStore = defineStore('rounds', {
       }
     },
 
+    async moveRound(roundId, direction) {
+        if (this.isSaving) return false
+      
+        const orderedRounds = this.allRounds
+        const currentIndex = orderedRounds.findIndex(
+          (round) => Number(round.id) === Number(roundId),
+        )
+      
+        if (currentIndex === -1) {
+          throw new Error('Round not found.')
+        }
+      
+        const targetIndex =
+          direction === 'up'
+            ? currentIndex - 1
+            : currentIndex + 1
+      
+        if (
+          targetIndex < 0 ||
+          targetIndex >= orderedRounds.length
+        ) {
+          return false
+        }
+      
+        const currentRound = orderedRounds[currentIndex]
+        const targetRound = orderedRounds[targetIndex]
+      
+        const currentSortOrder = Number(currentRound.sortOrder)
+        const targetSortOrder = Number(targetRound.sortOrder)
+      
+        this.isSaving = true
+        this.clearError()
+      
+        try {
+          const [currentResponse, targetResponse] =
+            await Promise.all([
+              fetch('/api/rounds', {
+                method: 'PATCH',
+                headers: {
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                  id: currentRound.id,
+                  sortOrder: targetSortOrder,
+                }),
+              }),
+      
+              fetch('/api/rounds', {
+                method: 'PATCH',
+                headers: {
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                  id: targetRound.id,
+                  sortOrder: currentSortOrder,
+                }),
+              }),
+            ])
+      
+          if (!currentResponse.ok) {
+            const message = await this.getErrorMessage(
+              currentResponse,
+              'Unable to reorder the round.',
+            )
+      
+            throw new Error(message)
+          }
+      
+          if (!targetResponse.ok) {
+            const message = await this.getErrorMessage(
+              targetResponse,
+              'Unable to reorder the round.',
+            )
+      
+            throw new Error(message)
+          }
+      
+          const [updatedCurrentRound, updatedTargetRound] =
+            await Promise.all([
+              currentResponse.json(),
+              targetResponse.json(),
+            ])
+      
+          const currentStoreIndex = this.rounds.findIndex(
+            (round) =>
+              Number(round.id) === Number(updatedCurrentRound.id),
+          )
+      
+          const targetStoreIndex = this.rounds.findIndex(
+            (round) =>
+              Number(round.id) === Number(updatedTargetRound.id),
+          )
+      
+          if (currentStoreIndex !== -1) {
+            this.rounds.splice(
+              currentStoreIndex,
+              1,
+              updatedCurrentRound,
+            )
+          }
+      
+          if (targetStoreIndex !== -1) {
+            this.rounds.splice(
+              targetStoreIndex,
+              1,
+              updatedTargetRound,
+            )
+          }
+      
+          return true
+        } catch (error) {
+          console.error('Failed to reorder round:', error)
+      
+          this.setError(
+            error,
+            'Unable to reorder the round.',
+          )
+      
+          try {
+            await this.loadRounds()
+          } catch {
+            // Preserve the original reorder error.
+          }
+      
+          throw error
+        } finally {
+          this.isSaving = false
+        }
+      },
+      
+      async moveQuestion(questionId, direction) {
+        if (this.isSaving) return false
+      
+        const question = this.getQuestionById(questionId)
+      
+        if (!question) {
+          throw new Error('Question not found.')
+        }
+      
+        const orderedQuestions = this.getQuestionsByRound(
+          question.roundId,
+        )
+      
+        const currentIndex = orderedQuestions.findIndex(
+          (item) =>
+            Number(item.id) === Number(questionId),
+        )
+      
+        if (currentIndex === -1) {
+          throw new Error('Question not found.')
+        }
+      
+        const targetIndex =
+          direction === 'up'
+            ? currentIndex - 1
+            : currentIndex + 1
+      
+        if (
+          targetIndex < 0 ||
+          targetIndex >= orderedQuestions.length
+        ) {
+          return false
+        }
+      
+        const currentQuestion = orderedQuestions[currentIndex]
+        const targetQuestion = orderedQuestions[targetIndex]
+      
+        const currentSortOrder = Number(
+          currentQuestion.sortOrder,
+        )
+      
+        const targetSortOrder = Number(
+          targetQuestion.sortOrder,
+        )
+      
+        this.isSaving = true
+        this.clearError()
+      
+        try {
+          const [currentResponse, targetResponse] =
+            await Promise.all([
+              fetch('/api/questions', {
+                method: 'PATCH',
+                headers: {
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                  id: currentQuestion.id,
+                  sortOrder: targetSortOrder,
+                }),
+              }),
+      
+              fetch('/api/questions', {
+                method: 'PATCH',
+                headers: {
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                  id: targetQuestion.id,
+                  sortOrder: currentSortOrder,
+                }),
+              }),
+            ])
+      
+          if (!currentResponse.ok) {
+            const message = await this.getErrorMessage(
+              currentResponse,
+              'Unable to reorder the question.',
+            )
+      
+            throw new Error(message)
+          }
+      
+          if (!targetResponse.ok) {
+            const message = await this.getErrorMessage(
+              targetResponse,
+              'Unable to reorder the question.',
+            )
+      
+            throw new Error(message)
+          }
+      
+          const [
+            updatedCurrentQuestion,
+            updatedTargetQuestion,
+          ] = await Promise.all([
+            currentResponse.json(),
+            targetResponse.json(),
+          ])
+      
+          const currentStoreIndex = this.questions.findIndex(
+            (item) =>
+              Number(item.id) ===
+              Number(updatedCurrentQuestion.id),
+          )
+      
+          const targetStoreIndex = this.questions.findIndex(
+            (item) =>
+              Number(item.id) ===
+              Number(updatedTargetQuestion.id),
+          )
+      
+          if (currentStoreIndex !== -1) {
+            this.questions.splice(
+              currentStoreIndex,
+              1,
+              updatedCurrentQuestion,
+            )
+          }
+      
+          if (targetStoreIndex !== -1) {
+            this.questions.splice(
+              targetStoreIndex,
+              1,
+              updatedTargetQuestion,
+            )
+          }
+      
+          return true
+        } catch (error) {
+          console.error('Failed to reorder question:', error)
+      
+          this.setError(
+            error,
+            'Unable to reorder the question.',
+          )
+      
+          try {
+            await this.loadQuestions(question.roundId)
+          } catch {
+            // Preserve the original reorder error.
+          }
+      
+          throw error
+        } finally {
+          this.isSaving = false
+        }
+      },
+
     async addRound(roundData) {
       this.isSaving = true
       this.clearError()

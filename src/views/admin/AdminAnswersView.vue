@@ -1,20 +1,31 @@
 <script setup>
+import { onMounted } from 'vue'
 import AdminShell from '@/components/layout/AdminShell.vue'
 import AppCard from '@/components/base/AppCard.vue'
 import AppButton from '@/components/base/AppButton.vue'
 
 import { useGameStore } from '@/stores/gameStore'
-import { users } from '@/data/users'
+import { useUsersStore } from '@/stores/usersStore'
 
 const gameStore = useGameStore()
+const usersStore = useUsersStore()
 
 function getPlayer(userId) {
-  return users.find((user) => user.id === userId)
+  return usersStore.getUserById(userId)
 }
 
 function getQuestion(questionId) {
   return gameStore.questions.find((question) => question.id === questionId)
 }
+
+onMounted(async () => {
+  if (!usersStore.users.length) {
+    await usersStore.loadUsers()
+  }
+
+  await gameStore.loadQuizContent()
+  await gameStore.loadAnswers()
+})
 
 </script>
 
