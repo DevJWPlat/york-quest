@@ -774,35 +774,9 @@ onMounted(async () => {
   padding: 18px;
 }
 
-.editor-layout {
-  display: grid;
-  gap: 18px;
-}
-
-.editor-main {
-  display: grid;
-  align-content: start;
-  gap: 18px;
-}
-
-.section-heading,
-.selected-heading,
-.question-heading,
-.button-row,
-.question-actions {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 14px;
-}
-
-.section-heading {
-  margin-bottom: 18px;
-}
-
 small {
   display: block;
-  margin-bottom: 8px;
+  margin-bottom: 12px;
   color: var(--gold);
   font-weight: 800;
   text-transform: uppercase;
@@ -815,19 +789,61 @@ p {
 }
 
 h1 {
-  font-size: 24px;
+  color: var(--cream);
+  font-size: 26px;
 }
 
 h2 {
-  font-size: 20px;
+  color: var(--cream);
+  font-size: 22px;
 }
 
 p {
+  margin-top: 8px;
   color: var(--muted);
+}
+
+.editor-layout,
+.editor-main,
+.question-panel,
+.form-grid,
+.question-list {
+  display: grid;
+  min-width: 0;
+}
+
+.editor-layout,
+.editor-main {
+  gap: 18px;
+}
+
+.form-grid {
+  gap: 14px;
+}
+
+.question-list {
+  gap: 10px;
+}
+
+.section-heading,
+.question-heading,
+.button-row,
+.question-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  min-width: 0;
+}
+
+.section-heading {
+  margin-bottom: 18px;
 }
 
 .round-tabs {
   display: flex;
+  width: 100%;
+  min-width: 0;
   gap: 8px;
   overflow-x: auto;
   padding-bottom: 4px;
@@ -837,12 +853,12 @@ p {
   display: grid;
   flex: 0 0 auto;
   min-width: 145px;
-  gap: 3px;
+  gap: 4px;
   border: 1px solid var(--border);
   border-radius: 14px;
   background: var(--card);
   color: var(--muted);
-  padding: 12px 14px;
+  padding: 14px;
   text-align: left;
   cursor: pointer;
 }
@@ -852,14 +868,13 @@ p {
 }
 
 .round-tabs button span {
+  color: var(--muted);
   font-size: 12px;
 }
 
 .round-tabs button.active {
   border-color: var(--gold);
-  box-shadow:
-    0 0 0 3px
-    rgba(214, 179, 106, 0.1);
+  box-shadow: 0 0 18px rgba(214, 179, 106, 0.14);
 }
 
 .round-tabs button.active strong,
@@ -871,13 +886,9 @@ p {
   opacity: 0.55;
 }
 
-.form-grid {
-  display: grid;
-  gap: 14px;
-}
-
 .field {
   display: grid;
+  min-width: 0;
   gap: 8px;
 }
 
@@ -890,6 +901,9 @@ p {
 select,
 textarea {
   width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
   border: 1px solid var(--border);
   border-radius: 10px;
   background: #121821;
@@ -902,9 +916,7 @@ textarea {
 select:focus,
 textarea:focus {
   border-color: var(--gold);
-  box-shadow:
-    0 0 0 3px
-    rgba(214, 179, 106, 0.12);
+  box-shadow: 0 0 0 3px rgba(214, 179, 106, 0.12);
 }
 
 .checkbox-field {
@@ -922,18 +934,17 @@ textarea:focus {
   accent-color: var(--gold);
 }
 
-.question-list {
-  display: grid;
-  gap: 12px;
-}
-
 .question-row {
   display: grid;
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
   gap: 12px;
-  padding: 14px;
   border: 1px solid var(--border);
   border-radius: 14px;
   background: var(--card);
+  color: var(--cream);
+  padding: 14px;
 }
 
 .question-row.inactive {
@@ -945,10 +956,16 @@ textarea:focus {
   margin-top: 4px;
   color: var(--gold);
   font-size: 12px;
+  font-weight: 800;
 }
 
 .question-detail {
+  margin-top: 0;
   font-size: 13px;
+}
+
+.question-heading > div {
+  min-width: 0;
 }
 
 .question-actions {
@@ -956,6 +973,7 @@ textarea:focus {
 }
 
 .status-badge {
+  flex: 0 0 auto;
   margin: 0 !important;
   border: 1px solid var(--border);
   border-radius: 999px;
@@ -963,6 +981,7 @@ textarea:focus {
 }
 
 .empty-state {
+  margin-top: 0;
   padding: 18px 0;
 }
 
@@ -1006,6 +1025,13 @@ textarea:focus {
 }
 
 @media (max-width: 640px) {
+  .admin-card {
+    width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+    padding: 18px;
+  }
+
   .section-heading,
   .button-row {
     align-items: stretch;
@@ -1015,6 +1041,12 @@ textarea:focus {
   .section-heading > *,
   .button-row > * {
     width: 100%;
+    min-width: 0;
+  }
+
+  .round-tabs button {
+    min-width: 150px;
+    max-width: 210px;
   }
 
   .question-heading {
