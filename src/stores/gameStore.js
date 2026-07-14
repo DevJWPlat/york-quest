@@ -9,10 +9,16 @@ export const useGameStore = defineStore('game', () => {
 
   const activeRoundId = ref(null)
   const activeQuestionId = ref(null)
+  const activeTieBreakerSessionId = ref(null)
+
+  const tieBreakerSession = ref(null)
+  const tieBreakerLoading = ref(false)
+  const tieBreakerError = ref('')
 
   const gameState = ref('waiting')
-  // waiting | roundIntro | question | submitted
-  // roundComplete | leaderboard | questComplete
+// waiting | roundIntro | question | submitted
+// roundComplete | leaderboard | tieBreaker
+// questComplete | finalLeaderboard | finalResults
 
   const isContentLoading = ref(false)
   const contentError = ref('')
@@ -105,6 +111,36 @@ export const useGameStore = defineStore('game', () => {
       ) || null
     )
   })
+
+  const tieBreakerParticipants = computed(() => {
+    return Array.isArray(
+      tieBreakerSession.value?.participants,
+    )
+      ? tieBreakerSession.value.participants
+      : []
+  })
+  
+  const tieBreakerQuestion = computed(() => {
+    return tieBreakerSession.value?.question || null
+  })
+  
+  const tieBreakerIsActive = computed(() => {
+    return Boolean(
+      gameState.value === 'tieBreaker' &&
+      activeTieBreakerSessionId.value &&
+      tieBreakerSession.value?.status === 'active',
+    )
+  })
+  
+  function getTieBreakerParticipant(userId) {
+    return (
+      tieBreakerParticipants.value.find(
+        (participant) =>
+          Number(participant.userId) ===
+          Number(userId),
+      ) || null
+    )
+  }
 
   const currentRoundQuestions = computed(() => {
     if (!currentRound.value) {
@@ -334,6 +370,8 @@ export const useGameStore = defineStore('game', () => {
 
     activeRoundId.value = parsedRoundId
     activeQuestionId.value = null
+    activeTieBreakerSessionId.value = null
+    clearTieBreakerSession()
     gameState.value = 'roundIntro'
 
     return saveGameState()
@@ -342,25 +380,31 @@ export const useGameStore = defineStore('game', () => {
   async function startQuestion(questionId) {
     const parsedQuestionId =
       Number(questionId)
-
+  
     const questionExists =
       questions.value.some(
         (question) =>
           Number(question.id) ===
           parsedQuestionId,
       )
-
+  
     if (!questionExists) {
       return {
         success: false,
         error: 'Question not found.',
       }
     }
-
+  
     activeQuestionId.value =
       parsedQuestionId
+  
+    activeTieBreakerSessionId.value =
+      null
+  
+    clearTieBreakerSession()
+  
     gameState.value = 'question'
-
+  
     return saveGameState()
   }
 
@@ -490,14 +534,14 @@ export const useGameStore = defineStore('game', () => {
         error: 'There is no active round.',
       }
     }
-
+  
     const completedRoundId =
       currentRound.value.id
-
+  
     rounds.value = rounds.value.map(
       (round) => ({
         ...round,
-
+  
         status:
           Number(round.id) ===
           Number(completedRoundId)
@@ -505,11 +549,16 @@ export const useGameStore = defineStore('game', () => {
             : round.status,
       }),
     )
-
+  
     activeRoundId.value = null
     activeQuestionId.value = null
+    activeTieBreakerSessionId.value =
+      null
+  
+    clearTieBreakerSession()
+  
     gameState.value = 'waiting'
-
+  
     return saveGameState()
   }
 
@@ -947,6 +996,162 @@ export const useGameStore = defineStore('game', () => {
     }
   }
 
+  function clearTieBreakerSession() {
+    tieBreakerSession.value = null
+    tieBreakerError.value = ''
+  }
+  
+  async function loadTieBreakerSession(
+    userId = null,
+  ) {
+    if (
+      gameState.value !== 'tieBreaker' ||
+      !activeTieBreakerSessionId.value
+    ) {
+      clearTieBreakerSession()
+  
+      return {
+        success: true,
+        session: null,
+      }
+    }
+  
+    if (tieBreakerLoading.value) {
+      return {
+        success: true,
+        session: tieBreakerSession.value,
+      }
+    }
+  
+    tieBreakerLoading.value = true
+    tieBreakerError.value = ''
+  
+    try {
+      const params = new URLSearchParams({
+        id: String(
+          activeTieBreakerSessionId.value,
+        ),
+      })
+  
+      if (userId) {
+        params.set('userId', String(userId))
+      }
+  
+      const response = await fetch(
+        `/api/tie-breaker-sessions?${params.toString()}`,
+        {
+          headers: {
+            Accept: 'application/json',
+          },
+        },
+      )
+  
+      const data = await getResponseData(
+        response,
+        'Unable to load the tie-breaker.',
+      )
+  
+      tieBreakerSession.value = data
+  
+      return {
+        success: true,
+        session: data,
+      }
+    } catch (error) {
+      console.error(
+        'Failed to load tie-breaker session:',
+        error,
+      )
+  
+      tieBreakerError.value =
+        error.message ||
+        'Unable to load the tie-breaker.'
+  
+      return {
+        success: false,
+        error: tieBreakerError.value,
+      }
+    } finally {
+      tieBreakerLoading.value = false
+    }
+  }
+  
+  async function submitTieBreakerAnswer({
+    userId,
+    answer,
+  }) {
+    if (
+      !activeTieBreakerSessionId.value ||
+      gameState.value !== 'tieBreaker'
+    ) {
+      return {
+        success: false,
+        error:
+          'There is no active tie-breaker.',
+      }
+    }
+  
+    const submittedAnswer = String(
+      answer || '',
+    ).trim()
+  
+    if (!submittedAnswer) {
+      return {
+        success: false,
+        error:
+          'Enter an answer before submitting.',
+      }
+    }
+  
+    try {
+      const response = await fetch(
+        '/api/tie-breaker-sessions',
+        {
+          method: 'PATCH',
+  
+          headers: {
+            'Content-Type':
+              'application/json',
+          },
+  
+          body: JSON.stringify({
+            action: 'submit-answer',
+            sessionId:
+              activeTieBreakerSessionId.value,
+            userId,
+            answer: submittedAnswer,
+          }),
+        },
+      )
+  
+      const data = await getResponseData(
+        response,
+        'Unable to submit the tie-breaker answer.',
+      )
+  
+      tieBreakerSession.value = data
+  
+      return {
+        success: true,
+        session: data,
+        participant:
+          getTieBreakerParticipant(userId),
+      }
+    } catch (error) {
+      console.error(
+        'Failed to submit tie-breaker answer:',
+        error,
+      )
+  
+      return {
+        success: false,
+        error:
+          error.message ||
+          'The tie-breaker answer could not be submitted.',
+      }
+    }
+  }
+
   async function loadGameState() {
     try {
       /*
@@ -984,6 +1189,21 @@ export const useGameStore = defineStore('game', () => {
         state.activeQuestionId !== undefined
           ? Number(state.activeQuestionId)
           : null
+
+        activeTieBreakerSessionId.value =
+          state.activeTieBreakerSessionId !== null &&
+          state.activeTieBreakerSessionId !== undefined
+            ? Number(
+                state.activeTieBreakerSessionId,
+              )
+            : null
+        
+        if (
+          gameState.value !== 'tieBreaker' ||
+          !activeTieBreakerSessionId.value
+        ) {
+          clearTieBreakerSession()
+        }
 
       restoreRoundStatuses()
 
@@ -1032,6 +1252,8 @@ export const useGameStore = defineStore('game', () => {
               activeRoundId.value,
             activeQuestionId:
               activeQuestionId.value,
+            activeTieBreakerSessionId:
+              activeTieBreakerSessionId.value,
           }),
         },
       )
@@ -1044,19 +1266,31 @@ export const useGameStore = defineStore('game', () => {
       gameState.value =
         state.status || gameState.value
   
-      activeRoundId.value =
+        activeRoundId.value =
         state.activeRoundId !== null &&
         state.activeRoundId !== undefined
           ? Number(state.activeRoundId)
           : null
-  
+
       activeQuestionId.value =
         state.activeQuestionId !== null &&
         state.activeQuestionId !== undefined
+          ? Number(state.activeQuestionId)
+          : null
+
+      activeTieBreakerSessionId.value =
+        state.activeTieBreakerSessionId !== null &&
+        state.activeTieBreakerSessionId !== undefined
           ? Number(
-              state.activeQuestionId,
+              state.activeTieBreakerSessionId,
             )
           : null
+        
+        if (
+          gameState.value !== 'tieBreaker'
+        ) {
+          clearTieBreakerSession()
+        }
   
       return {
         success: true,
@@ -1144,18 +1378,28 @@ export const useGameStore = defineStore('game', () => {
         error: 'There is no active round.',
       }
     }
-
+  
     activeQuestionId.value = null
+    activeTieBreakerSessionId.value =
+      null
+  
+    clearTieBreakerSession()
+  
     gameState.value = 'roundComplete'
-
+  
     return saveGameState()
   }
 
   async function endQuest() {
     activeRoundId.value = null
     activeQuestionId.value = null
+    activeTieBreakerSessionId.value =
+      null
+  
+    clearTieBreakerSession()
+  
     gameState.value = 'questComplete'
-
+  
     return saveGameState()
   }
 
@@ -1234,5 +1478,19 @@ export const useGameStore = defineStore('game', () => {
     showFinalLeaderboard,
     showFinalResults,
     hideFinalResults,
+
+    activeTieBreakerSessionId,
+    tieBreakerSession,
+    tieBreakerLoading,
+    tieBreakerError,
+
+    tieBreakerParticipants,
+    tieBreakerQuestion,
+    tieBreakerIsActive,
+    getTieBreakerParticipant,
+
+    loadTieBreakerSession,
+    submitTieBreakerAnswer,
+    clearTieBreakerSession,
   }
 })

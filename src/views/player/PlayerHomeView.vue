@@ -16,6 +16,8 @@ import RoundCompleteScreen from '@/components/player/RoundCompleteScreen.vue'
 import QuestCompleteScreen from '@/components/player/QuestCompleteScreen.vue'
 import FinalResultsScreen from '@/components/player/FinalResultsScreen.vue'
 import PlayerLeaderboardScreen from '@/components/player/PlayerLeaderboardScreen.vue'
+import TieBreakerQuestionScreen from '@/components/player/TieBreakerQuestionScreen.vue'
+import TieBreakerWaitingScreen from '@/components/player/TieBreakerWaitingScreen.vue'
 
 import { useAuthStore } from '@/stores/authStore'
 import { useGameStore } from '@/stores/gameStore'
@@ -27,11 +29,55 @@ const submittedQuestionId = ref(null)
 const submittingAnswer = ref(false)
 const submissionError = ref('')
 
+const submittingTieBreaker = ref(false)
+const tieBreakerSubmissionError = ref('')
+
+let gameStateInterval
+let refreshingPlayerState = false
+
 const hasSubmittedCurrentQuestion = computed(() => {
   return Boolean(
     gameStore.currentQuestion &&
     Number(submittedQuestionId.value) ===
       Number(gameStore.currentQuestion.id),
+  )
+})
+
+const currentTieBreakerParticipant = computed(() => {
+  if (!authStore.user) {
+    return null
+  }
+
+  return (
+    gameStore.tieBreakerSession
+      ?.currentParticipant ||
+    gameStore.getTieBreakerParticipant(
+      authStore.user.id,
+    )
+  )
+})
+
+const isTieBreakerParticipant = computed(() => {
+  return Boolean(
+    currentTieBreakerParticipant.value ||
+    gameStore.tieBreakerSession
+      ?.isParticipant,
+  )
+})
+
+const hasSubmittedTieBreaker = computed(() => {
+  return Boolean(
+    currentTieBreakerParticipant.value
+      ?.hasSubmitted,
+  )
+})
+
+const tieBreakerReady = computed(() => {
+  return Boolean(
+    gameStore.gameState ===
+      'tieBreaker' &&
+    gameStore.tieBreakerQuestion &&
+    gameStore.tieBreakerSession,
   )
 })
 
@@ -49,11 +95,19 @@ async function checkExistingAnswer() {
       questionId: String(
         gameStore.currentQuestion.id,
       ),
-      userId: String(authStore.user.id),
+
+      userId: String(
+        authStore.user.id,
+      ),
     })
 
     const response = await fetch(
       `/api/answers?${params.toString()}`,
+      {
+        headers: {
+          Accept: 'application/json',
+        },
+      },
     )
 
     if (!response.ok) {
@@ -77,8 +131,48 @@ async function checkExistingAnswer() {
   }
 }
 
+async function loadPlayerTieBreaker() {
+  if (
+    gameStore.gameState !==
+      'tieBreaker' ||
+    !gameStore
+      .activeTieBreakerSessionId ||
+    !authStore.user
+  ) {
+    return
+  }
+
+  await gameStore.loadTieBreakerSession(
+    authStore.user.id,
+  )
+}
+
+async function refreshPlayerState() {
+  if (refreshingPlayerState) {
+    return
+  }
+
+  refreshingPlayerState = true
+
+  try {
+    await gameStore.loadGameState()
+
+    if (
+      gameStore.gameState ===
+      'tieBreaker'
+    ) {
+      await loadPlayerTieBreaker()
+    }
+  } finally {
+    refreshingPlayerState = false
+  }
+}
+
 async function submitAnswer(answer) {
-  if (submittingAnswer.value) {
+  if (
+    submittingAnswer.value ||
+    !authStore.user
+  ) {
     return
   }
 
@@ -110,15 +204,50 @@ async function submitAnswer(answer) {
   }
 }
 
-let gameStateInterval
+async function submitTieBreakerAnswer(
+  answer,
+) {
+  if (
+    submittingTieBreaker.value ||
+    !authStore.user
+  ) {
+    return
+  }
+
+  tieBreakerSubmissionError.value = ''
+  submittingTieBreaker.value = true
+
+  try {
+    const result =
+      await gameStore
+        .submitTieBreakerAnswer({
+          userId: authStore.user.id,
+          answer,
+        })
+
+    if (!result?.success) {
+      tieBreakerSubmissionError.value =
+        result?.error ||
+        'Your tie-breaker answer could not be submitted.'
+
+      return
+    }
+
+    await gameStore.loadTieBreakerSession(
+      authStore.user.id,
+    )
+  } finally {
+    submittingTieBreaker.value = false
+  }
+}
 
 onMounted(async () => {
-  await gameStore.loadGameState()
+  await refreshPlayerState()
   await checkExistingAnswer()
 
   gameStateInterval =
-    window.setInterval(async () => {
-      await gameStore.loadGameState()
+    window.setInterval(() => {
+      refreshPlayerState()
     }, 2000)
 })
 
@@ -145,15 +274,115 @@ watch(
     }
   },
 )
+
+watch(
+  () =>
+    gameStore
+      .activeTieBreakerSessionId,
+  async (
+    newSessionId,
+    previousSessionId,
+  ) => {
+    if (
+      Number(newSessionId) !==
+      Number(previousSessionId)
+    ) {
+      tieBreakerSubmissionError.value =
+        ''
+
+      await loadPlayerTieBreaker()
+    }
+  },
+)
+
+watch(
+  () => gameStore.gameState,
+  async (
+    newState,
+    previousState,
+  ) => {
+    if (
+      newState === 'tieBreaker' &&
+      previousState !== 'tieBreaker'
+    ) {
+      tieBreakerSubmissionError.value =
+        ''
+
+      await loadPlayerTieBreaker()
+    }
+  },
+)
 </script>
 
 <template>
   <PlayerShell>
-    <WaitingScreen
+    <div
       v-if="
-        gameStore.gameState === 'waiting'
+        gameStore.gameState ===
+          'tieBreaker' &&
+        gameStore.tieBreakerError
       "
-      :next-round="gameStore.nextRound"
+      class="player-error"
+    >
+      {{ gameStore.tieBreakerError }}
+    </div>
+
+    <div
+      v-if="
+        gameStore.gameState ===
+          'tieBreaker' &&
+        gameStore.tieBreakerLoading &&
+        !gameStore.tieBreakerSession
+      "
+      class="loading-state"
+    >
+      Loading tie-breaker...
+    </div>
+
+    <TieBreakerQuestionScreen
+      v-else-if="
+        tieBreakerReady &&
+        isTieBreakerParticipant &&
+        !hasSubmittedTieBreaker
+      "
+      :question="
+        gameStore.tieBreakerQuestion
+      "
+      :participant="
+        currentTieBreakerParticipant
+      "
+      :submitting="
+        submittingTieBreaker
+      "
+      :error="
+        tieBreakerSubmissionError
+      "
+      @submit="
+        submitTieBreakerAnswer
+      "
+    />
+
+    <TieBreakerWaitingScreen
+      v-else-if="
+        gameStore.gameState ===
+        'tieBreaker'
+      "
+      :is-participant="
+        isTieBreakerParticipant
+      "
+      :has-submitted="
+        hasSubmittedTieBreaker
+      "
+    />
+
+    <WaitingScreen
+      v-else-if="
+        gameStore.gameState ===
+        'waiting'
+      "
+      :next-round="
+        gameStore.nextRound
+      "
     />
 
     <RoundIntroCard
@@ -161,10 +390,12 @@ watch(
         gameStore.gameState ===
         'roundIntro'
       "
-      :round="gameStore.currentRound"
+      :round="
+        gameStore.currentRound
+      "
       :questions-count="
-        gameStore.currentRoundQuestions
-          .length
+        gameStore
+          .currentRoundQuestions.length
       "
     />
 
@@ -178,19 +409,24 @@ watch(
         gameStore.currentQuestion
       "
       :question-number="
-        gameStore.currentRoundQuestions.findIndex(
-          (question) =>
-            Number(question.id) ===
-            Number(
-              gameStore.currentQuestion?.id,
-            ),
-        ) + 1
+        gameStore
+          .currentRoundQuestions
+          .findIndex(
+            (question) =>
+              Number(question.id) ===
+              Number(
+                gameStore
+                  .currentQuestion?.id,
+              ),
+          ) + 1
       "
       :total-questions="
-        gameStore.currentRoundQuestions
-          .length
+        gameStore
+          .currentRoundQuestions.length
       "
-      :submitting="submittingAnswer"
+      :submitting="
+        submittingAnswer
+      "
       :error="submissionError"
       @submit="submitAnswer"
     />
@@ -219,10 +455,10 @@ watch(
 
     <PlayerLeaderboardScreen
       v-else-if="
-        gameStore.gameState === 'leaderboard'
+        gameStore.gameState ===
+        'leaderboard'
       "
     />
-
 
     <QuestCompleteScreen
       v-else-if="
@@ -233,20 +469,51 @@ watch(
 
     <FinalResultsScreen
       v-else-if="
-        gameStore.gameState === 'finalResults' ||
-        gameStore.gameState === 'finalLeaderboard'
+        gameStore.gameState ===
+          'finalResults' ||
+        gameStore.gameState ===
+          'finalLeaderboard'
       "
       :show-results="
-        gameStore.gameState === 'finalResults'
+        gameStore.gameState ===
+        'finalResults'
       "
       :show-leaderboard="
-        gameStore.gameState === 'finalLeaderboard'
+        gameStore.gameState ===
+        'finalLeaderboard'
       "
     />
 
     <WaitingScreen
       v-else
-      :next-round="gameStore.nextRound"
+      :next-round="
+        gameStore.nextRound
+      "
     />
   </PlayerShell>
 </template>
+
+<style scoped>
+.loading-state,
+.player-error {
+  margin-top: 24px;
+  border-radius: 14px;
+  padding: 18px;
+  text-align: center;
+  font-weight: 700;
+}
+
+.loading-state {
+  border: 1px solid var(--border);
+  background: var(--bg-soft);
+  color: var(--muted);
+}
+
+.player-error {
+  border: 1px solid
+    rgba(239, 68, 68, 0.4);
+  background:
+    rgba(239, 68, 68, 0.12);
+  color: #fecaca;
+}
+</style>
