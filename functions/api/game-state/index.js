@@ -16,6 +16,7 @@ export async function onRequestGet({ env }) {
           status,
           active_round_id AS activeRoundId,
           active_question_id AS activeQuestionId,
+          active_tie_breaker_session_id AS activeTieBreakerSessionId,
           updated_at AS updatedAt
         FROM game_state
         WHERE id = 1
@@ -58,6 +59,7 @@ export async function onRequestPut({
       'questComplete',
       'finalLeaderboard',
       'finalResults',
+      'tieBreaker',
     ]
 
     if (
@@ -76,6 +78,7 @@ export async function onRequestPut({
           status = ?,
           active_round_id = ?,
           active_question_id = ?,
+          active_tie_breaker_session_id = ?,
           updated_at = CURRENT_TIMESTAMP
         WHERE id = 1
       `)
@@ -83,6 +86,7 @@ export async function onRequestPut({
         body.status,
         body.activeRoundId ?? null,
         body.activeQuestionId ?? null,
+        body.activeTieBreakerSessionId ?? null,
       )
       .run()
 
@@ -93,6 +97,7 @@ export async function onRequestPut({
           status,
           active_round_id AS activeRoundId,
           active_question_id AS activeQuestionId,
+          active_tie_breaker_session_id AS activeTieBreakerSessionId,
           updated_at AS updatedAt
         FROM game_state
         WHERE id = 1
