@@ -304,7 +304,16 @@ watch(
 
 <template>
   <AdminShell>
-    <AppCard class="admin-card hero-card">
+    <AppCard
+      v-if="
+        ![
+          'questComplete',
+          'finalLeaderboard',
+          'finalResults',
+        ].includes(gameStore.gameState)
+      "
+      class="admin-card hero-card"
+    >
       <small>Current Game</small>
 
       <template v-if="gameStore.currentRound">
@@ -318,8 +327,41 @@ watch(
 
       <template v-else>
         <h2>No active round</h2>
-        <p>Start the next round when everyone is ready.</p>
+
+        <p>
+          Start the next round when everyone is ready.
+        </p>
       </template>
+    </AppCard>
+
+    <AppCard
+      v-if="
+        [
+          'questComplete',
+          'finalLeaderboard',
+          'finalResults',
+        ].includes(gameStore.gameState)
+      "
+      class="admin-card hero-card game-complete-card"
+    >
+      <small>Game Complete</small>
+
+      <h2>Quest Complete</h2>
+
+      <p>
+        Josh's York Quest has finished. Choose what the
+        players can see below.
+      </p>
+
+      <div class="status-pill">
+        {{
+          gameStore.gameState === 'questComplete'
+            ? 'Results Hidden'
+            : gameStore.gameState === 'finalLeaderboard'
+              ? 'Final Leaderboard Showing'
+              : 'Winner & Loser Showing'
+        }}
+      </div>
     </AppCard>
 
     <AppCard class="admin-card">
@@ -737,5 +779,10 @@ p {
   background: var(--card);
   text-align: center;
   line-height: 1.5;
+}
+
+.game-complete-card {
+  border-color: var(--gold);
+  box-shadow: 0 0 24px rgba(214, 179, 106, 0.12);
 }
 </style>
