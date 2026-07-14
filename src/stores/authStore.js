@@ -6,45 +6,106 @@ export const useAuthStore = defineStore('auth', () => {
   const error = ref('')
   const loading = ref(false)
 
+  function persistUser(updatedUser) {
+    user.value = updatedUser
+
+    localStorage.setItem(
+      'yorkQuestUser',
+      JSON.stringify(updatedUser),
+    )
+  }
+
   async function login(username, password) {
     loading.value = true
     error.value = ''
-  
+
     try {
       const response = await fetch('/api/login', {
         method: 'POST',
+
         headers: {
           'Content-Type': 'application/json',
         },
+
         body: JSON.stringify({
           username,
           password,
         }),
       })
-  
+
       const data = await response.json()
-  
+
       if (!response.ok || !data.success) {
         throw new Error(
           data.error || 'Unable to log in.',
         )
       }
-  
-      user.value = data.user
-  
-      localStorage.setItem(
-        'yorkQuestUser',
-        JSON.stringify(data.user),
-      )
-  
+
+      persistUser(data.user)
+
       return {
         success: true,
         user: data.user,
       }
     } catch (loginError) {
       error.value =
-        loginError.message || 'Unable to log in.'
-  
+        loginError.message ||
+        'Unable to log in.'
+
+      return {
+        success: false,
+        error: error.value,
+      }
+    } finally {
+      loading.value = false
+    }
+  }
+
+  async function updateCurrentUser(updates) {
+    if (!user.value?.id) {
+      return {
+        success: false,
+        error: 'No user is currently logged in.',
+      }
+    }
+
+    loading.value = true
+    error.value = ''
+
+    try {
+      const response = await fetch('/api/users', {
+        method: 'PATCH',
+
+        headers: {
+          'Content-Type': 'application/json',
+        },
+
+        body: JSON.stringify({
+          id: user.value.id,
+          ...updates,
+        }),
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(
+          data.error ||
+            'Unable to update the user.',
+        )
+      }
+
+      persistUser(data)
+
+      return {
+        success: true,
+        user: data,
+      }
+    } catch (updateError) {
+      error.value =
+        updateError.message ||
+        'Unable to update the user.'
+
       return {
         success: false,
         error: error.value,
@@ -60,10 +121,19 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   function loadUser() {
-    const savedUser = localStorage.getItem('yorkQuestUser')
+    const savedUser =
+      localStorage.getItem('yorkQuestUser')
 
-    if (savedUser) {
+    if (!savedUser) {
+      return
+    }
+
+    try {
       user.value = JSON.parse(savedUser)
+    } catch {
+      localStorage.removeItem(
+        'yorkQuestUser',
+      )
     }
   }
 
@@ -74,6 +144,7 @@ export const useAuthStore = defineStore('auth', () => {
     loading,
     error,
     login,
+    updateCurrentUser,
     logout,
   }
 })
