@@ -19,24 +19,24 @@ const editingQuestionId = ref(null)
 
 const roundForm = ref(createEmptyRoundForm())
 const questionForm = ref(createEmptyQuestionForm())
+const tieBreakerForm = ref(
+  createEmptyTieBreakerForm(),
+)
 
 const pageError = ref('')
 const successMessage = ref('')
 
 const questionImageInput = ref(null)
+const tieBreakerImageInput = ref(null)
+
 const isUploadingImage = ref(false)
+const isUploadingTieBreakerImage = ref(false)
 
-/*
- * The image URL already stored against the question
- * when editing began.
- */
 const originalQuestionImageUrl = ref('')
-
-/*
- * A newly uploaded image which has not yet been saved
- * against a question in D1.
- */
 const pendingUploadedImageUrl = ref('')
+
+const originalTieBreakerImageUrl = ref('')
+const pendingTieBreakerImageUrl = ref('')
 
 function createEmptyRoundForm() {
   return {
@@ -60,6 +60,17 @@ function createEmptyQuestionForm() {
   }
 }
 
+function createEmptyTieBreakerForm() {
+  return {
+    questionType: 'number',
+    questionText: '',
+    correctAnswer: '',
+    optionsText: '',
+    imageUrl: '',
+    isActive: true,
+  }
+}
+
 const selectedRound = computed(() => {
   return roundsStore.getRoundById(
     selectedRoundId.value,
@@ -72,6 +83,16 @@ const selectedQuestions = computed(() => {
   }
 
   return roundsStore.getQuestionsByRound(
+    selectedRoundId.value,
+  )
+})
+
+const selectedTieBreaker = computed(() => {
+  if (!selectedRoundId.value) {
+    return null
+  }
+
+  return roundsStore.getTieBreakerByRound(
     selectedRoundId.value,
   )
 })
@@ -107,11 +128,27 @@ const isQuestionBusy = computed(() => {
   )
 })
 
-function roundLabel(round) {
-  const roundIndex = roundsStore.allRounds.findIndex(
-    (item) =>
-      Number(item.id) === Number(round.id),
+const isTieBreakerBusy = computed(() => {
+  return (
+    roundsStore.isSaving ||
+    isUploadingTieBreakerImage.value
   )
+})
+
+const isPageBusy = computed(() => {
+  return (
+    isQuestionBusy.value ||
+    isTieBreakerBusy.value
+  )
+})
+
+function roundLabel(round) {
+  const roundIndex =
+    roundsStore.allRounds.findIndex(
+      (item) =>
+        Number(item.id) ===
+        Number(round.id),
+    )
 
   return `Pub ${roundIndex + 1}`
 }
@@ -174,16 +211,21 @@ async function deleteUploadedImage(imageUrl) {
     '/api/question-images',
     {
       method: 'DELETE',
+
       headers: {
         'Content-Type': 'application/json',
       },
+
       body: JSON.stringify({
         key,
       }),
     },
   )
 
-  if (!response.ok && response.status !== 404) {
+  if (
+    !response.ok &&
+    response.status !== 404
+  ) {
     let message =
       'Unable to delete the uploaded image.'
 
@@ -200,6 +242,57 @@ async function deleteUploadedImage(imageUrl) {
   return true
 }
 
+async function uploadImageFile(file) {
+  const allowedTypes = [
+    'image/jpeg',
+    'image/png',
+    'image/webp',
+    'image/gif',
+  ]
+
+  if (!allowedTypes.includes(file.type)) {
+    throw new Error(
+      'Please choose a JPG, PNG, WebP or GIF image.',
+    )
+  }
+
+  if (file.size > 5 * 1024 * 1024) {
+    throw new Error(
+      'The image must be smaller than 5MB.',
+    )
+  }
+
+  const formData = new FormData()
+  formData.append('image', file)
+
+  const response = await fetch(
+    '/api/question-images',
+    {
+      method: 'POST',
+      body: formData,
+    },
+  )
+
+  let data = {}
+
+  try {
+    data = await response.json()
+  } catch {
+    throw new Error(
+      'The image upload returned an invalid response.',
+    )
+  }
+
+  if (!response.ok) {
+    throw new Error(
+      data.error ||
+        'Unable to upload the image.',
+    )
+  }
+
+  return data.url
+}
+
 async function cleanupPendingImage() {
   const pendingUrl =
     pendingUploadedImageUrl.value
@@ -214,10 +307,37 @@ async function cleanupPendingImage() {
     await deleteUploadedImage(pendingUrl)
   } catch (error) {
     console.error(
-      'Failed to clean up pending image:',
+      'Failed to clean up pending question image:',
       error,
     )
   }
+}
+
+async function cleanupPendingTieBreakerImage() {
+  const pendingUrl =
+    pendingTieBreakerImageUrl.value
+
+  if (!pendingUrl) {
+    return
+  }
+
+  pendingTieBreakerImageUrl.value = ''
+
+  try {
+    await deleteUploadedImage(pendingUrl)
+  } catch (error) {
+    console.error(
+      'Failed to clean up pending tie-breaker image:',
+      error,
+    )
+  }
+}
+
+async function cleanupAllPendingImages() {
+  await Promise.all([
+    cleanupPendingImage(),
+    cleanupPendingTieBreakerImage(),
+  ])
 }
 
 function resetImageState() {
@@ -229,8 +349,62 @@ function resetImageState() {
   }
 }
 
+function resetTieBreakerImageState() {
+  originalTieBreakerImageUrl.value = ''
+  pendingTieBreakerImageUrl.value = ''
+
+  if (tieBreakerImageInput.value) {
+    tieBreakerImageInput.value.value = ''
+  }
+}
+
+function populateTieBreakerForm() {
+  const tieBreaker =
+    selectedTieBreaker.value
+
+  if (!tieBreaker) {
+    tieBreakerForm.value =
+      createEmptyTieBreakerForm()
+
+    resetTieBreakerImageState()
+    return
+  }
+
+  tieBreakerForm.value = {
+    questionType:
+      tieBreaker.questionType || 'number',
+
+    questionText:
+      tieBreaker.questionText || '',
+
+    correctAnswer:
+      tieBreaker.correctAnswer || '',
+
+    optionsText: Array.isArray(
+      tieBreaker.options,
+    )
+      ? tieBreaker.options.join('\n')
+      : '',
+
+    imageUrl:
+      tieBreaker.imageUrl || '',
+
+    isActive:
+      Boolean(tieBreaker.isActive),
+  }
+
+  originalTieBreakerImageUrl.value =
+    tieBreaker.imageUrl || ''
+
+  pendingTieBreakerImageUrl.value = ''
+
+  if (tieBreakerImageInput.value) {
+    tieBreakerImageInput.value.value = ''
+  }
+}
+
 async function selectRound(round) {
-  await cleanupPendingImage()
+  await cleanupAllPendingImages()
 
   clearMessages()
 
@@ -249,20 +423,31 @@ async function selectRound(round) {
     createEmptyQuestionForm()
 
   resetImageState()
+  populateTieBreakerForm()
 }
 
 async function selectFirstRound() {
-  const firstRound = roundsStore.allRounds[0]
+  const firstRound =
+    roundsStore.allRounds[0]
 
   if (!firstRound) {
-    await cleanupPendingImage()
+    await cleanupAllPendingImages()
 
     selectedRoundId.value = null
-    roundForm.value = createEmptyRoundForm()
+    editingQuestionId.value = null
+
+    roundForm.value =
+      createEmptyRoundForm()
+
     questionForm.value =
       createEmptyQuestionForm()
 
+    tieBreakerForm.value =
+      createEmptyTieBreakerForm()
+
     resetImageState()
+    resetTieBreakerImageState()
+
     return
   }
 
@@ -270,24 +455,33 @@ async function selectFirstRound() {
 }
 
 async function startNewRound() {
-  await cleanupPendingImage()
+  await cleanupAllPendingImages()
 
   clearMessages()
 
   selectedRoundId.value = null
   editingQuestionId.value = null
-  roundForm.value = createEmptyRoundForm()
+
+  roundForm.value =
+    createEmptyRoundForm()
+
   questionForm.value =
     createEmptyQuestionForm()
 
+  tieBreakerForm.value =
+    createEmptyTieBreakerForm()
+
   resetImageState()
+  resetTieBreakerImageState()
 }
 
 async function saveRound() {
   clearMessages()
 
   if (!roundForm.value.name.trim()) {
-    pageError.value = 'Pub name is required.'
+    pageError.value =
+      'Pub name is required.'
+
     return
   }
 
@@ -345,8 +539,13 @@ async function removeRound(roundId) {
 
   if (!round) return
 
+  const tieBreaker =
+    roundsStore.getTieBreakerByRound(
+      roundId,
+    )
+
   const confirmed = window.confirm(
-    `Delete ${round.name} and all of its questions and answers?`,
+    `Delete ${round.name} and all of its questions, tie-breaker and answers?`,
   )
 
   if (!confirmed) return
@@ -355,6 +554,19 @@ async function removeRound(roundId) {
 
   try {
     await roundsStore.deleteRound(roundId)
+
+    if (tieBreaker?.imageUrl) {
+      try {
+        await deleteUploadedImage(
+          tieBreaker.imageUrl,
+        )
+      } catch (error) {
+        console.error(
+          'Round deleted, but the tie-breaker image could not be removed:',
+          error,
+        )
+      }
+    }
 
     successMessage.value =
       'Round deleted successfully.'
@@ -375,10 +587,23 @@ function getQuestionOptions() {
     .filter(Boolean)
 }
 
+function getTieBreakerOptions() {
+  return tieBreakerForm.value.optionsText
+    .split('\n')
+    .map((option) => option.trim())
+    .filter(Boolean)
+}
+
 function openQuestionImagePicker() {
   if (isQuestionBusy.value) return
 
   questionImageInput.value?.click()
+}
+
+function openTieBreakerImagePicker() {
+  if (isTieBreakerBusy.value) return
+
+  tieBreakerImageInput.value?.click()
 }
 
 async function uploadQuestionImage(event) {
@@ -389,37 +614,9 @@ async function uploadQuestionImage(event) {
   }
 
   clearMessages()
-
-  const allowedTypes = [
-    'image/jpeg',
-    'image/png',
-    'image/webp',
-    'image/gif',
-  ]
-
-  if (!allowedTypes.includes(file.type)) {
-    pageError.value =
-      'Please choose a JPG, PNG, WebP or GIF image.'
-
-    event.target.value = ''
-    return
-  }
-
-  if (file.size > 5 * 1024 * 1024) {
-    pageError.value =
-      'The image must be smaller than 5MB.'
-
-    event.target.value = ''
-    return
-  }
-
   isUploadingImage.value = true
 
   try {
-    /*
-     * Delete a previous unsaved upload before
-     * replacing it with another one.
-     */
     if (pendingUploadedImageUrl.value) {
       await deleteUploadedImage(
         pendingUploadedImageUrl.value,
@@ -428,37 +625,14 @@ async function uploadQuestionImage(event) {
       pendingUploadedImageUrl.value = ''
     }
 
-    const formData = new FormData()
-    formData.append('image', file)
+    const imageUrl =
+      await uploadImageFile(file)
 
-    const response = await fetch(
-      '/api/question-images',
-      {
-        method: 'POST',
-        body: formData,
-      },
-    )
+    questionForm.value.imageUrl =
+      imageUrl
 
-    let data = {}
-
-    try {
-      data = await response.json()
-    } catch {
-      throw new Error(
-        'The image upload returned an invalid response.',
-      )
-    }
-
-    if (!response.ok) {
-      throw new Error(
-        data.error ||
-          'Unable to upload the image.',
-      )
-    }
-
-    questionForm.value.imageUrl = data.url
     pendingUploadedImageUrl.value =
-      data.url
+      imageUrl
 
     successMessage.value =
       'Image uploaded. Save the question to keep it.'
@@ -478,6 +652,56 @@ async function uploadQuestionImage(event) {
   }
 }
 
+async function uploadTieBreakerImage(event) {
+  const file = event.target.files?.[0]
+
+  if (!file) {
+    return
+  }
+
+  clearMessages()
+  isUploadingTieBreakerImage.value = true
+
+  try {
+    if (
+      pendingTieBreakerImageUrl.value
+    ) {
+      await deleteUploadedImage(
+        pendingTieBreakerImageUrl.value,
+      )
+
+      pendingTieBreakerImageUrl.value = ''
+    }
+
+    const imageUrl =
+      await uploadImageFile(file)
+
+    tieBreakerForm.value.imageUrl =
+      imageUrl
+
+    pendingTieBreakerImageUrl.value =
+      imageUrl
+
+    successMessage.value =
+      'Tie-breaker image uploaded. Save the tie-breaker to keep it.'
+  } catch (error) {
+    console.error(
+      'Failed to upload tie-breaker image:',
+      error,
+    )
+
+    showError(
+      error,
+      'Unable to upload the tie-breaker image.',
+    )
+  } finally {
+    isUploadingTieBreakerImage.value =
+      false
+
+    event.target.value = ''
+  }
+}
+
 async function removeQuestionImage() {
   clearMessages()
 
@@ -488,10 +712,6 @@ async function removeQuestionImage() {
     return
   }
 
-  /*
-   * A new unsaved upload can be removed from R2
-   * immediately.
-   */
   if (
     pendingUploadedImageUrl.value &&
     currentImageUrl ===
@@ -521,15 +741,57 @@ async function removeQuestionImage() {
     return
   }
 
-  /*
-   * An existing saved image is cleared from the form.
-   * It will be deleted from R2 only after the updated
-   * question successfully saves.
-   */
   questionForm.value.imageUrl = ''
 
   successMessage.value =
     'Image removed from the form. Save the question to confirm.'
+}
+
+async function removeTieBreakerImage() {
+  clearMessages()
+
+  const currentImageUrl =
+    tieBreakerForm.value.imageUrl
+
+  if (!currentImageUrl) {
+    return
+  }
+
+  if (
+    pendingTieBreakerImageUrl.value &&
+    currentImageUrl ===
+      pendingTieBreakerImageUrl.value
+  ) {
+    isUploadingTieBreakerImage.value =
+      true
+
+    try {
+      await deleteUploadedImage(
+        pendingTieBreakerImageUrl.value,
+      )
+
+      pendingTieBreakerImageUrl.value = ''
+      tieBreakerForm.value.imageUrl = ''
+
+      successMessage.value =
+        'Unsaved tie-breaker image removed.'
+    } catch (error) {
+      showError(
+        error,
+        'Unable to remove the tie-breaker image.',
+      )
+    } finally {
+      isUploadingTieBreakerImage.value =
+        false
+    }
+
+    return
+  }
+
+  tieBreakerForm.value.imageUrl = ''
+
+  successMessage.value =
+    'Tie-breaker image removed from the form. Save to confirm.'
 }
 
 async function saveQuestion() {
@@ -538,6 +800,7 @@ async function saveQuestion() {
   if (!selectedRound.value) {
     pageError.value =
       'Select or create a round first.'
+
     return
   }
 
@@ -546,6 +809,7 @@ async function saveQuestion() {
   ) {
     pageError.value =
       'Question text is required.'
+
     return
   }
 
@@ -556,6 +820,7 @@ async function saveQuestion() {
   ) {
     pageError.value =
       'Please upload an image for this image question.'
+
     return
   }
 
@@ -568,23 +833,31 @@ async function saveQuestion() {
   ) {
     pageError.value =
       'Multiple-choice questions need at least two options.'
+
     return
   }
 
   const questionData = {
     roundId: selectedRound.value.id,
+
     questionType:
       questionForm.value.questionType,
+
     questionText:
       questionForm.value.questionText,
+
     correctAnswer:
       questionForm.value.correctAnswer,
+
     options,
+
     imageUrl:
       questionForm.value.imageUrl,
+
     points: Number(
       questionForm.value.points || 0,
     ),
+
     isActive:
       questionForm.value.isActive,
   }
@@ -602,11 +875,6 @@ async function saveQuestion() {
         ...questionData,
       })
 
-      /*
-       * The D1 update succeeded, so the old R2 image
-       * can now safely be deleted when it was replaced
-       * or removed.
-       */
       if (
         imageUrlBeforeSave &&
         imageUrlBeforeSave !==
@@ -635,10 +903,6 @@ async function saveQuestion() {
         'Question added successfully.'
     }
 
-    /*
-     * The newly uploaded image is now attached to a
-     * saved D1 question, so it is no longer pending.
-     */
     pendingUploadedImageUrl.value = ''
 
     await cancelQuestionEditing({
@@ -653,6 +917,150 @@ async function saveQuestion() {
   }
 }
 
+async function saveTieBreaker() {
+  clearMessages()
+
+  if (!selectedRound.value) {
+    pageError.value =
+      'Select or create a round first.'
+
+    return
+  }
+
+  if (
+    !tieBreakerForm.value.questionText.trim()
+  ) {
+    pageError.value =
+      'Tie-breaker question text is required.'
+
+    return
+  }
+
+  if (
+    tieBreakerForm.value.questionType ===
+      'image' &&
+    !tieBreakerForm.value.imageUrl
+  ) {
+    pageError.value =
+      'Please upload an image for this image tie-breaker.'
+
+    return
+  }
+
+  const options = getTieBreakerOptions()
+
+  if (
+    tieBreakerForm.value.questionType ===
+      'multiple_choice' &&
+    options.length < 2
+  ) {
+    pageError.value =
+      'Multiple-choice tie-breakers need at least two options.'
+
+    return
+  }
+
+  const tieBreakerData = {
+    roundId: selectedRound.value.id,
+
+    questionType:
+      tieBreakerForm.value.questionType,
+
+    questionText:
+      tieBreakerForm.value.questionText,
+
+    correctAnswer:
+      tieBreakerForm.value.correctAnswer,
+
+    options,
+
+    imageUrl:
+      tieBreakerForm.value.imageUrl,
+
+    isActive:
+      tieBreakerForm.value.isActive,
+  }
+
+  const imageUrlBeforeSave =
+    originalTieBreakerImageUrl.value
+
+  const imageUrlAfterSave =
+    tieBreakerForm.value.imageUrl
+
+  try {
+    let savedTieBreaker
+
+    if (selectedTieBreaker.value) {
+      savedTieBreaker =
+        await roundsStore.updateTieBreaker({
+          id: selectedTieBreaker.value.id,
+          ...tieBreakerData,
+        })
+
+      successMessage.value =
+        'Tie-breaker updated successfully.'
+    } else {
+      savedTieBreaker =
+        await roundsStore.addTieBreaker(
+          tieBreakerData,
+        )
+
+      successMessage.value =
+        'Tie-breaker added successfully.'
+    }
+
+    if (
+      imageUrlBeforeSave &&
+      imageUrlBeforeSave !==
+        imageUrlAfterSave
+    ) {
+      try {
+        await deleteUploadedImage(
+          imageUrlBeforeSave,
+        )
+      } catch (error) {
+        console.error(
+          'Tie-breaker saved, but the old image could not be deleted:',
+          error,
+        )
+      }
+    }
+
+    pendingTieBreakerImageUrl.value = ''
+
+    tieBreakerForm.value = {
+      questionType:
+        savedTieBreaker.questionType,
+
+      questionText:
+        savedTieBreaker.questionText,
+
+      correctAnswer:
+        savedTieBreaker.correctAnswer || '',
+
+      optionsText: Array.isArray(
+        savedTieBreaker.options,
+      )
+        ? savedTieBreaker.options.join('\n')
+        : '',
+
+      imageUrl:
+        savedTieBreaker.imageUrl || '',
+
+      isActive:
+        Boolean(savedTieBreaker.isActive),
+    }
+
+    originalTieBreakerImageUrl.value =
+      savedTieBreaker.imageUrl || ''
+  } catch (error) {
+    showError(
+      error,
+      'Unable to save the tie-breaker.',
+    )
+  }
+}
+
 async function editQuestion(question) {
   await cleanupPendingImage()
 
@@ -663,20 +1071,26 @@ async function editQuestion(question) {
   questionForm.value = {
     questionType:
       question.questionType || 'text',
+
     questionText:
       question.questionText || '',
+
     points: Number(
       question.points ?? 1,
     ),
+
     correctAnswer:
       question.correctAnswer || '',
+
     optionsText: Array.isArray(
       question.options,
     )
       ? question.options.join('\n')
       : '',
+
     imageUrl:
       question.imageUrl || '',
+
     isActive:
       Boolean(question.isActive),
   }
@@ -707,6 +1121,7 @@ async function cancelQuestionEditing(
   }
 
   editingQuestionId.value = null
+
   questionForm.value =
     createEmptyQuestionForm()
 
@@ -715,6 +1130,13 @@ async function cancelQuestionEditing(
   if (!preserveMessage) {
     clearMessages()
   }
+}
+
+async function resetTieBreakerForm() {
+  await cleanupPendingTieBreakerImage()
+
+  clearMessages()
+  populateTieBreakerForm()
 }
 
 async function removeQuestion(question) {
@@ -731,10 +1153,6 @@ async function removeQuestion(question) {
       question.id,
     )
 
-    /*
-     * The database question has been deleted. Remove
-     * its uploaded image from R2 as well.
-     */
     if (question.imageUrl) {
       try {
         await deleteUploadedImage(
@@ -763,6 +1181,60 @@ async function removeQuestion(question) {
     showError(
       error,
       'Unable to delete the question.',
+    )
+  }
+}
+
+async function removeTieBreaker() {
+  const tieBreaker =
+    selectedTieBreaker.value
+
+  if (!tieBreaker) {
+    return
+  }
+
+  const confirmed = window.confirm(
+    'Delete this tie-breaker question and any previous tie-breaker sessions for this round?',
+  )
+
+  if (!confirmed) return
+
+  clearMessages()
+
+  try {
+    const result =
+      await roundsStore.deleteTieBreaker(
+        tieBreaker.id,
+      )
+
+    if (
+      result?.imageUrl ||
+      tieBreaker.imageUrl
+    ) {
+      try {
+        await deleteUploadedImage(
+          result?.imageUrl ||
+            tieBreaker.imageUrl,
+        )
+      } catch (error) {
+        console.error(
+          'Tie-breaker deleted, but its image could not be deleted:',
+          error,
+        )
+      }
+    }
+
+    tieBreakerForm.value =
+      createEmptyTieBreakerForm()
+
+    resetTieBreakerImageState()
+
+    successMessage.value =
+      'Tie-breaker deleted successfully.'
+  } catch (error) {
+    showError(
+      error,
+      'Unable to delete the tie-breaker.',
     )
   }
 }
@@ -825,7 +1297,7 @@ onMounted(async () => {
   } catch (error) {
     showError(
       error,
-      'Unable to load rounds and questions.',
+      'Unable to load rounds, questions and tie-breakers.',
     )
   }
 })
@@ -837,7 +1309,7 @@ onMounted(async () => {
       v-if="roundsStore.isLoading"
       class="admin-card"
     >
-      <p>Loading rounds and questions...</p>
+      <p>Loading rounds, questions and tie-breakers...</p>
     </AppCard>
 
     <template v-else>
@@ -863,14 +1335,10 @@ onMounted(async () => {
           </div>
 
           <AppButton
-            variant="dark"
-            :disabled="
-              roundsStore.isSaving ||
-              isUploadingImage
-            "
+            :disabled="isPageBusy"
             @click="startNewRound"
           >
-            New Round
+            Add New Round
           </AppButton>
         </div>
 
@@ -889,7 +1357,7 @@ onMounted(async () => {
             v-for="round in roundsStore.allRounds"
             :key="round.id"
             type="button"
-            :disabled="isQuestionBusy"
+            :disabled="isPageBusy"
             :class="{
               active:
                 Number(selectedRoundId) ===
@@ -923,39 +1391,33 @@ onMounted(async () => {
                 v-model="roundForm.name"
                 label="Pub Name"
                 placeholder="The Golden Fleece"
+                :disabled="isPageBusy"
               />
 
               <AppInput
                 v-model="roundForm.location"
                 label="Location"
                 placeholder="York"
+                :disabled="isPageBusy"
               />
 
               <label class="field">
                 <span>Round Introduction</span>
 
                 <textarea
-                  v-model="
-                    roundForm.description
-                  "
+                  v-model="roundForm.description"
                   rows="4"
                   placeholder="Add an introduction or instructions for this pub"
+                  :disabled="isPageBusy"
                 />
               </label>
 
-              <AppInput
-                v-model="roundForm.imageUrl"
-                label="Round Image URL"
-                placeholder="Optional for now"
-              />
-
               <label class="checkbox-field">
                 <input
-                  v-model="
-                    roundForm.isActive
-                  "
+                  v-model="roundForm.isActive"
                   type="checkbox"
-                />
+                  :disabled="isPageBusy"
+                >
 
                 <span>
                   Round is active and visible
@@ -965,10 +1427,7 @@ onMounted(async () => {
               <div class="button-row">
                 <AppButton
                   full
-                  :disabled="
-                    roundsStore.isSaving ||
-                    isUploadingImage
-                  "
+                  :disabled="isPageBusy"
                   @click="saveRound"
                 >
                   {{
@@ -984,13 +1443,10 @@ onMounted(async () => {
                   v-if="selectedRound"
                   variant="dark"
                   :disabled="
-                    roundsStore.isSaving ||
-                    isUploadingImage ||
+                    isPageBusy ||
                     !canMoveRoundUp
                   "
-                  @click="
-                    moveSelectedRound('up')
-                  "
+                  @click="moveSelectedRound('up')"
                 >
                   Move Up
                 </AppButton>
@@ -999,13 +1455,10 @@ onMounted(async () => {
                   v-if="selectedRound"
                   variant="dark"
                   :disabled="
-                    roundsStore.isSaving ||
-                    isUploadingImage ||
+                    isPageBusy ||
                     !canMoveRoundDown
                   "
-                  @click="
-                    moveSelectedRound('down')
-                  "
+                  @click="moveSelectedRound('down')"
                 >
                   Move Down
                 </AppButton>
@@ -1013,14 +1466,9 @@ onMounted(async () => {
                 <AppButton
                   v-if="selectedRound"
                   variant="dark"
-                  :disabled="
-                    roundsStore.isSaving ||
-                    isUploadingImage
-                  "
+                  :disabled="isPageBusy"
                   @click="
-                    removeRound(
-                      selectedRound.id,
-                    )
+                    removeRound(selectedRound.id)
                   "
                 >
                   Delete Round
@@ -1053,9 +1501,7 @@ onMounted(async () => {
                 v-if="isEditingQuestion"
                 variant="dark"
                 :disabled="isQuestionBusy"
-                @click="
-                  cancelQuestionEditing()
-                "
+                @click="cancelQuestionEditing()"
               >
                 Cancel Edit
               </AppButton>
@@ -1066,9 +1512,7 @@ onMounted(async () => {
                 <span>Question Type</span>
 
                 <select
-                  v-model="
-                    questionForm.questionType
-                  "
+                  v-model="questionForm.questionType"
                   :disabled="isQuestionBusy"
                 >
                   <option value="text">
@@ -1083,9 +1527,7 @@ onMounted(async () => {
                     Number
                   </option>
 
-                  <option
-                    value="multiple_choice"
-                  >
+                  <option value="multiple_choice">
                     Multiple Choice
                   </option>
 
@@ -1099,9 +1541,7 @@ onMounted(async () => {
                 <span>Question</span>
 
                 <textarea
-                  v-model="
-                    questionForm.questionText
-                  "
+                  v-model="questionForm.questionText"
                   rows="4"
                   placeholder="Enter the question"
                   :disabled="isQuestionBusy"
@@ -1109,9 +1549,7 @@ onMounted(async () => {
               </label>
 
               <AppInput
-                v-model="
-                  questionForm.points
-                "
+                v-model="questionForm.points"
                 label="Points"
                 type="number"
                 min="0"
@@ -1131,9 +1569,7 @@ onMounted(async () => {
                 </span>
 
                 <textarea
-                  v-model="
-                    questionForm.optionsText
-                  "
+                  v-model="questionForm.optionsText"
                   rows="5"
                   placeholder="Enter one option per line"
                   :disabled="isQuestionBusy"
@@ -1156,23 +1592,17 @@ onMounted(async () => {
                   class="hidden-file-input"
                   type="file"
                   accept="image/jpeg,image/png,image/webp,image/gif"
-                  @change="
-                    uploadQuestionImage
-                  "
-                />
+                  @change="uploadQuestionImage"
+                >
 
                 <div
-                  v-if="
-                    questionForm.imageUrl
-                  "
+                  v-if="questionForm.imageUrl"
                   class="image-preview"
                 >
                   <img
-                    :src="
-                      questionForm.imageUrl
-                    "
+                    :src="questionForm.imageUrl"
                     alt="Question image preview"
-                  />
+                  >
                 </div>
 
                 <p
@@ -1186,12 +1616,8 @@ onMounted(async () => {
                 <div class="image-actions">
                   <AppButton
                     variant="dark"
-                    :disabled="
-                      isQuestionBusy
-                    "
-                    @click="
-                      openQuestionImagePicker
-                    "
+                    :disabled="isQuestionBusy"
+                    @click="openQuestionImagePicker"
                   >
                     {{
                       isUploadingImage
@@ -1203,16 +1629,10 @@ onMounted(async () => {
                   </AppButton>
 
                   <AppButton
-                    v-if="
-                      questionForm.imageUrl
-                    "
+                    v-if="questionForm.imageUrl"
                     variant="dark"
-                    :disabled="
-                      isQuestionBusy
-                    "
-                    @click="
-                      removeQuestionImage
-                    "
+                    :disabled="isQuestionBusy"
+                    @click="removeQuestionImage"
                   >
                     Remove Image
                   </AppButton>
@@ -1220,9 +1640,7 @@ onMounted(async () => {
               </div>
 
               <AppInput
-                v-model="
-                  questionForm.correctAnswer
-                "
+                v-model="questionForm.correctAnswer"
                 label="Correct Answer"
                 placeholder="Enter the correct answer"
                 :disabled="isQuestionBusy"
@@ -1230,12 +1648,10 @@ onMounted(async () => {
 
               <label class="checkbox-field">
                 <input
-                  v-model="
-                    questionForm.isActive
-                  "
+                  v-model="questionForm.isActive"
                   type="checkbox"
                   :disabled="isQuestionBusy"
-                />
+                >
 
                 <span>
                   Question is active and visible
@@ -1257,6 +1673,224 @@ onMounted(async () => {
                         : 'Add Question'
                 }}
               </AppButton>
+            </div>
+          </AppCard>
+
+          <AppCard
+            v-if="selectedRound"
+            class="admin-card tie-breaker-card"
+          >
+            <div class="section-heading">
+              <div>
+                <small>Tie-Breaker</small>
+
+                <h2>
+                  {{
+                    selectedTieBreaker
+                      ? 'Edit Tie-Breaker'
+                      : 'Add Tie-Breaker'
+                  }}
+                </h2>
+
+                <p class="tie-breaker-description">
+                  Used only to decide a tied round winner.
+                  No points are added to the leaderboard.
+                </p>
+              </div>
+
+              <span
+                v-if="selectedTieBreaker"
+                class="tie-breaker-status"
+                :class="{
+                  inactive:
+                    !selectedTieBreaker.isActive,
+                }"
+              >
+                {{
+                  selectedTieBreaker.isActive
+                    ? 'Ready'
+                    : 'Hidden'
+                }}
+              </span>
+            </div>
+
+            <div class="form-grid">
+              <label class="field">
+                <span>Tie-Breaker Type</span>
+
+                <select
+                  v-model="tieBreakerForm.questionType"
+                  :disabled="isTieBreakerBusy"
+                >
+                  <option value="text">
+                    Text
+                  </option>
+
+                  <option value="long_text">
+                    Long Text
+                  </option>
+
+                  <option value="number">
+                    Number
+                  </option>
+
+                  <option value="multiple_choice">
+                    Multiple Choice
+                  </option>
+
+                  <option value="image">
+                    Image Question
+                  </option>
+                </select>
+              </label>
+
+              <label class="field">
+                <span>Tie-Breaker Question</span>
+
+                <textarea
+                  v-model="tieBreakerForm.questionText"
+                  rows="4"
+                  placeholder="For example: How many steps are there to the front door?"
+                  :disabled="isTieBreakerBusy"
+                />
+              </label>
+
+              <label
+                v-if="
+                  tieBreakerForm.questionType ===
+                  'multiple_choice'
+                "
+                class="field"
+              >
+                <span>
+                  Multiple-choice options
+                </span>
+
+                <textarea
+                  v-model="tieBreakerForm.optionsText"
+                  rows="5"
+                  placeholder="Enter one option per line"
+                  :disabled="isTieBreakerBusy"
+                />
+              </label>
+
+              <div
+                v-if="
+                  tieBreakerForm.questionType ===
+                  'image'
+                "
+                class="image-upload-field"
+              >
+                <span class="image-upload-label">
+                  Tie-Breaker Image
+                </span>
+
+                <input
+                  ref="tieBreakerImageInput"
+                  class="hidden-file-input"
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp,image/gif"
+                  @change="uploadTieBreakerImage"
+                >
+
+                <div
+                  v-if="tieBreakerForm.imageUrl"
+                  class="image-preview tie-breaker-image-preview"
+                >
+                  <img
+                    :src="tieBreakerForm.imageUrl"
+                    alt="Tie-breaker image preview"
+                  >
+                </div>
+
+                <p
+                  v-else
+                  class="image-help"
+                >
+                  Upload a JPG, PNG, WebP or GIF.
+                  Maximum size 5MB.
+                </p>
+
+                <div class="image-actions">
+                  <AppButton
+                    variant="dark"
+                    :disabled="isTieBreakerBusy"
+                    @click="openTieBreakerImagePicker"
+                  >
+                    {{
+                      isUploadingTieBreakerImage
+                        ? 'Uploading...'
+                        : tieBreakerForm.imageUrl
+                          ? 'Replace Image'
+                          : 'Choose Image'
+                    }}
+                  </AppButton>
+
+                  <AppButton
+                    v-if="tieBreakerForm.imageUrl"
+                    variant="dark"
+                    :disabled="isTieBreakerBusy"
+                    @click="removeTieBreakerImage"
+                  >
+                    Remove Image
+                  </AppButton>
+                </div>
+              </div>
+
+              <AppInput
+                v-model="tieBreakerForm.correctAnswer"
+                label="Correct Answer"
+                placeholder="Enter the correct answer"
+                :disabled="isTieBreakerBusy"
+              />
+
+              <label class="checkbox-field">
+                <input
+                  v-model="tieBreakerForm.isActive"
+                  type="checkbox"
+                  :disabled="isTieBreakerBusy"
+                >
+
+                <span>
+                  Tie-breaker is active and available
+                </span>
+              </label>
+
+              <div class="button-row">
+                <AppButton
+                  full
+                  :disabled="isTieBreakerBusy"
+                  @click="saveTieBreaker"
+                >
+                  {{
+                    isUploadingTieBreakerImage
+                      ? 'Uploading Image...'
+                      : roundsStore.isSaving
+                        ? 'Saving...'
+                        : selectedTieBreaker
+                          ? 'Save Tie-Breaker'
+                          : 'Add Tie-Breaker'
+                  }}
+                </AppButton>
+
+                <AppButton
+                  v-if="selectedTieBreaker"
+                  variant="dark"
+                  :disabled="isTieBreakerBusy"
+                  @click="resetTieBreakerForm"
+                >
+                  Reset Changes
+                </AppButton>
+
+                <AppButton
+                  v-if="selectedTieBreaker"
+                  variant="dark"
+                  :disabled="isTieBreakerBusy"
+                  @click="removeTieBreaker"
+                >
+                  Delete Tie-Breaker
+                </AppButton>
+              </div>
             </div>
           </AppCard>
         </div>
@@ -1329,7 +1963,7 @@ onMounted(async () => {
                       questionIndex + 1
                     }`
                   "
-                />
+                >
               </div>
 
               <p>
@@ -1345,9 +1979,7 @@ onMounted(async () => {
                 class="question-detail"
               >
                 Options:
-                {{
-                  question.options.join(', ')
-                }}
+                {{ question.options.join(', ') }}
               </p>
 
               <p class="question-detail">
@@ -1362,14 +1994,11 @@ onMounted(async () => {
                 <AppButton
                   variant="dark"
                   :disabled="
-                    isQuestionBusy ||
+                    isPageBusy ||
                     questionIndex === 0
                   "
                   @click="
-                    moveQuestion(
-                      question,
-                      'up',
-                    )
+                    moveQuestion(question, 'up')
                   "
                 >
                   Up
@@ -1378,16 +2007,12 @@ onMounted(async () => {
                 <AppButton
                   variant="dark"
                   :disabled="
-                    isQuestionBusy ||
+                    isPageBusy ||
                     questionIndex ===
-                      selectedQuestions.length -
-                        1
+                      selectedQuestions.length - 1
                   "
                   @click="
-                    moveQuestion(
-                      question,
-                      'down',
-                    )
+                    moveQuestion(question, 'down')
                   "
                 >
                   Down
@@ -1395,25 +2020,85 @@ onMounted(async () => {
 
                 <AppButton
                   variant="dark"
-                  :disabled="isQuestionBusy"
-                  @click="
-                    editQuestion(question)
-                  "
+                  :disabled="isPageBusy"
+                  @click="editQuestion(question)"
                 >
                   Edit
                 </AppButton>
 
                 <AppButton
                   variant="dark"
-                  :disabled="isQuestionBusy"
-                  @click="
-                    removeQuestion(question)
-                  "
+                  :disabled="isPageBusy"
+                  @click="removeQuestion(question)"
                 >
                   Delete
                 </AppButton>
               </div>
             </article>
+          </div>
+
+          <div
+            v-if="selectedTieBreaker"
+            class="tie-breaker-summary"
+            :class="{
+              inactive:
+                !selectedTieBreaker.isActive,
+            }"
+          >
+            <div class="question-heading">
+              <div>
+                <strong>Tie-Breaker</strong>
+
+                <span>
+                  {{
+                    questionTypeLabel(
+                      selectedTieBreaker.questionType,
+                    )
+                  }}
+                  · No points
+                </span>
+              </div>
+
+              <span class="tie-breaker-badge">
+                Optional
+              </span>
+            </div>
+
+            <div
+              v-if="selectedTieBreaker.imageUrl"
+              class="question-list-image"
+            >
+              <img
+                :src="selectedTieBreaker.imageUrl"
+                alt="Tie-breaker question image"
+              >
+            </div>
+
+            <p>
+              {{ selectedTieBreaker.questionText }}
+            </p>
+
+            <p
+              v-if="
+                selectedTieBreaker.questionType ===
+                  'multiple_choice' &&
+                selectedTieBreaker.options.length
+              "
+              class="question-detail"
+            >
+              Options:
+              {{
+                selectedTieBreaker.options.join(', ')
+              }}
+            </p>
+
+            <p class="question-detail">
+              Correct answer:
+              {{
+                selectedTieBreaker.correctAnswer ||
+                'Not set'
+              }}
+            </p>
           </div>
         </AppCard>
       </div>
@@ -1621,6 +2306,10 @@ textarea:disabled {
   aspect-ratio: 16 / 10;
 }
 
+.tie-breaker-image-preview {
+  border-color: rgba(214, 179, 106, 0.4);
+}
+
 .question-list-image {
   aspect-ratio: 16 / 9;
 }
@@ -1643,7 +2332,8 @@ textarea:disabled {
   flex-wrap: wrap;
 }
 
-.question-row {
+.question-row,
+.tie-breaker-summary {
   display: grid;
   width: 100%;
   min-width: 0;
@@ -1656,11 +2346,13 @@ textarea:disabled {
   padding: 14px;
 }
 
-.question-row.inactive {
+.question-row.inactive,
+.tie-breaker-summary.inactive {
   opacity: 0.62;
 }
 
-.question-row span {
+.question-row span,
+.tie-breaker-summary span {
   display: block;
   margin-top: 4px;
   color: var(--gold);
@@ -1682,12 +2374,69 @@ textarea:disabled {
   flex-wrap: wrap;
 }
 
-.status-badge {
+.status-badge,
+.tie-breaker-badge,
+.tie-breaker-status {
   flex: 0 0 auto;
   margin: 0 !important;
   border: 1px solid var(--border);
   border-radius: 999px;
   padding: 5px 9px;
+}
+
+.tie-breaker-card {
+  border-color: rgba(214, 179, 106, 0.48);
+  background:
+    radial-gradient(
+      circle at top right,
+      rgba(214, 179, 106, 0.09),
+      transparent 34%
+    ),
+    var(--card);
+  box-shadow:
+    0 0 24px
+    rgba(214, 179, 106, 0.08);
+}
+
+.tie-breaker-description {
+  max-width: 560px;
+  line-height: 1.5;
+}
+
+.tie-breaker-status {
+  border-color: rgba(214, 179, 106, 0.5);
+  color: var(--gold-light);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.tie-breaker-status.inactive {
+  border-color: var(--border);
+  color: var(--muted);
+}
+
+.tie-breaker-summary {
+  margin-top: 14px;
+  border-color: rgba(214, 179, 106, 0.45);
+  background:
+    linear-gradient(
+      145deg,
+      rgba(214, 179, 106, 0.08),
+      rgba(214, 179, 106, 0.025)
+    ),
+    var(--card);
+}
+
+.tie-breaker-summary strong {
+  color: var(--gold-light);
+}
+
+.tie-breaker-badge {
+  border-color: rgba(214, 179, 106, 0.45);
+  color: var(--gold-light) !important;
+  text-transform: uppercase;
 }
 
 .empty-state {
@@ -1770,6 +2519,10 @@ textarea:disabled {
   .question-actions > *,
   .image-actions > * {
     flex: 1 1 calc(50% - 7px);
+  }
+
+  .tie-breaker-status {
+    align-self: flex-start;
   }
 }
 </style>
