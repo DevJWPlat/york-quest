@@ -5,14 +5,24 @@ import confetti from 'canvas-confetti'
 
 onMounted(() => {
   confetti({
-    particleCount: 80,
-    spread: 70,
-    startVelocity: 32,
+    particleCount: 90,
+    spread: 75,
+    startVelocity: 30,
+
     origin: {
       x: 0.5,
-      y: 0.65,
+      y: 0.36,
     },
+
+    colors: [
+      '#d6b36a',
+      '#f1d28d',
+      '#ffe0a0',
+      '#b88b3f',
+    ],
+
     scalar: 0.9,
+    gravity: 0.9,
     ticks: 180,
   })
 })
