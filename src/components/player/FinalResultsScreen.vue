@@ -17,6 +17,18 @@ import AppCard from '@/components/base/AppCard.vue'
 
 import { useUsersStore } from '@/stores/usersStore'
 
+defineProps({
+  showResults: {
+    type: Boolean,
+    default: false,
+  },
+
+  showLeaderboard: {
+    type: Boolean,
+    default: false,
+  },
+})
+
 const usersStore = useUsersStore()
 
 const leaderboardData = ref([])
@@ -300,129 +312,123 @@ onUnmounted(() => {
     </div>
 
     <template v-else>
-      <AppCard
-        v-if="winners.length"
-        class="result-card winner-card"
-      >
-        <div class="result-icon winner-icon">
-          <Crown
-            :size="34"
-            stroke-width="1.7"
-          />
-        </div>
-
-        <small>{{ winnerTitle }}</small>
-
-        <div class="result-avatars">
-          <AppAvatar
-            v-for="player in winners"
-            :key="player.id"
-            :name="player.name"
-            :image="player.avatar"
-            size="lg"
-          />
-        </div>
-
-        <h2>{{ winnerNames }}</h2>
-
-        <p>
-          {{
-            winners[0]?.totalPoints || 0
-          }}
-          points ·
-          {{
-            winners[0]?.correctAnswers ||
-            0
-          }}
-          correct
-        </p>
-      </AppCard>
-
-      <AppCard
-        v-if="losers.length"
-        class="result-card loser-card"
-      >
-        <div class="result-icon loser-icon">
-          <Skull
-            :size="30"
-            stroke-width="1.7"
-          />
-        </div>
-
-        <small>{{ loserTitle }}</small>
-
-        <div class="result-avatars compact">
-          <AppAvatar
-            v-for="player in losers"
-            :key="player.id"
-            :name="player.name"
-            :image="player.avatar"
-            size="md"
-          />
-        </div>
-
-        <h3>{{ loserNames }}</h3>
-
-        <p>
-          {{
-            losers[0]?.totalPoints || 0
-          }}
-          points ·
-          {{
-            losers[0]?.correctAnswers ||
-            0
-          }}
-          correct
-        </p>
-      </AppCard>
-
-      <div class="leaderboard-heading">
-        <small>Final Standings</small>
-        <h2>Leaderboard</h2>
-      </div>
-
-      <div class="leaderboard-list">
-        <article
-          v-for="player in leaderboard"
-          :key="player.id"
-          class="leaderboard-row"
-          :class="{
-            first:
-              player.position === 1,
-            second:
-              player.position === 2,
-            third:
-              player.position === 3,
-          }"
+      <template v-if="showResults">
+        <AppCard
+          v-if="winners.length"
+          class="result-card winner-card"
         >
-          <span class="position">
-            #{{ player.position }}
-          </span>
-
-          <AppAvatar
-            :name="player.name"
-            :image="player.avatar"
-            size="md"
-          />
-
-          <div class="player-details">
-            <strong>
-              {{ player.name }}
-            </strong>
-
-            <p>
-              {{ player.correctAnswers }}
-              correct
-            </p>
+          <div class="result-icon winner-icon">
+            <Crown
+              :size="34"
+              stroke-width="1.7"
+            />
           </div>
 
-          <strong class="points">
-            {{ player.totalPoints }}
-          </strong>
-        </article>
-      </div>
+          <small>{{ winnerTitle }}</small>
 
-      <p class="celebration-message">
+          <div class="result-avatars">
+            <AppAvatar
+              v-for="player in winners"
+              :key="player.id"
+              :name="player.name"
+              :image="player.avatar"
+              size="lg"
+            />
+          </div>
+
+          <h2>{{ winnerNames }}</h2>
+
+          <p>
+            {{ winners[0]?.totalPoints || 0 }}
+            points ·
+            {{ winners[0]?.correctAnswers || 0 }}
+            correct
+          </p>
+        </AppCard>
+
+        <AppCard
+          v-if="losers.length"
+          class="result-card loser-card"
+        >
+          <div class="result-icon loser-icon">
+            <Skull
+              :size="30"
+              stroke-width="1.7"
+            />
+          </div>
+
+          <small>{{ loserTitle }}</small>
+
+          <div class="result-avatars compact">
+            <AppAvatar
+              v-for="player in losers"
+              :key="player.id"
+              :name="player.name"
+              :image="player.avatar"
+              size="md"
+            />
+          </div>
+
+          <h3>{{ loserNames }}</h3>
+
+          <p>
+            {{ losers[0]?.totalPoints || 0 }}
+            points ·
+            {{ losers[0]?.correctAnswers || 0 }}
+            correct
+          </p>
+        </AppCard>
+      </template>
+
+      <template v-if="showLeaderboard">
+        <div class="leaderboard-heading">
+          <small>Final Standings</small>
+          <h2>Leaderboard</h2>
+        </div>
+
+        <div class="leaderboard-list">
+          <article
+            v-for="player in leaderboard"
+            :key="player.id"
+            class="leaderboard-row"
+            :class="{
+              first: player.position === 1,
+              second: player.position === 2,
+              third: player.position === 3,
+            }"
+          >
+            <span class="position">
+              #{{ player.position }}
+            </span>
+
+            <AppAvatar
+              :name="player.name"
+              :image="player.avatar"
+              size="md"
+            />
+
+            <div class="player-details">
+              <strong>
+                {{ player.name }}
+              </strong>
+
+              <p>
+                {{ player.correctAnswers }}
+                correct
+              </p>
+            </div>
+
+            <strong class="points">
+              {{ player.totalPoints }}
+            </strong>
+          </article>
+        </div>
+      </template>
+
+      <p
+        v-if="showResults || showLeaderboard"
+        class="celebration-message"
+      >
         Congratulations to everyone who
         survived Josh's York Quest!
       </p>

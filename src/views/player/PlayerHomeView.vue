@@ -219,12 +219,10 @@ watch(
 
     <PlayerLeaderboardScreen
       v-else-if="
-        gameStore.gameState ===
-          'leaderboard' ||
-        gameStore.gameState ===
-          'finalLeaderboard'
+        gameStore.gameState === 'leaderboard'
       "
     />
+
 
     <QuestCompleteScreen
       v-else-if="
@@ -235,8 +233,14 @@ watch(
 
     <FinalResultsScreen
       v-else-if="
-        gameStore.gameState ===
-        'finalResults'
+        gameStore.gameState === 'finalResults' ||
+        gameStore.gameState === 'finalLeaderboard'
+      "
+      :show-results="
+        gameStore.gameState === 'finalResults'
+      "
+      :show-leaderboard="
+        gameStore.gameState === 'finalLeaderboard'
       "
     />
 
