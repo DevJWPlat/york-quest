@@ -1,10 +1,27 @@
 <script setup>
-import { onMounted } from 'vue'
+import {
+  nextTick,
+  onMounted,
+  ref,
+} from 'vue'
+
 import { CircleCheck } from 'lucide-vue-next'
 import confetti from 'canvas-confetti'
 
-onMounted(() => {
-  confetti({
+const confettiCanvas = ref(null)
+
+onMounted(async () => {
+  await nextTick()
+
+  const fireConfetti = confetti.create(
+    confettiCanvas.value,
+    {
+      resize: true,
+      useWorker: true,
+    },
+  )
+
+  fireConfetti({
     particleCount: 90,
     spread: 75,
     startVelocity: 30,
@@ -30,6 +47,11 @@ onMounted(() => {
 
 <template>
   <section class="complete-screen">
+    <canvas
+      ref="confettiCanvas"
+      class="confetti-canvas"
+    />
+
     <div class="complete-circle">
       <CircleCheck
         :size="78"
@@ -50,6 +72,9 @@ onMounted(() => {
 
 <style scoped>
 .complete-screen {
+  position: relative;
+  isolation: isolate;
+
   display: grid;
   min-height: calc(100vh - 70px);
   align-content: center;
@@ -57,7 +82,19 @@ onMounted(() => {
   text-align: center;
 }
 
+.confetti-canvas {
+  position: fixed;
+  z-index: 1;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
 .complete-circle {
+  position: relative;
+  z-index: 2;
+
   display: grid;
   place-items: center;
   width: 155px;
@@ -65,6 +102,7 @@ onMounted(() => {
   margin: 0 auto;
   border: 1px solid var(--gold);
   border-radius: 50%;
+  background: var(--bg);
   color: var(--gold);
   box-shadow:
     0 0 30px
