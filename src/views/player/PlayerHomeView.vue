@@ -155,14 +155,29 @@ async function refreshPlayerState() {
   refreshingPlayerState = true
 
   try {
-    await gameStore.loadGameState()
+    const result =
+      await gameStore.loadGameState()
+
+    if (!result?.success) {
+      return
+    }
 
     if (
       gameStore.gameState ===
-      'tieBreaker'
+        'tieBreaker' &&
+      gameStore
+        .activeTieBreakerSessionId &&
+      authStore.user
     ) {
-      await loadPlayerTieBreaker()
+      await gameStore.loadTieBreakerSession(
+        authStore.user.id,
+      )
     }
+  } catch (error) {
+    console.error(
+      'Failed to refresh player state:',
+      error,
+    )
   } finally {
     refreshingPlayerState = false
   }
@@ -241,19 +256,49 @@ async function submitTieBreakerAnswer(
   }
 }
 
+function handleWindowFocus() {
+  refreshPlayerState()
+}
+
+function handleVisibilityChange() {
+  if (document.visibilityState === 'visible') {
+    refreshPlayerState()
+  }
+}
+
 onMounted(async () => {
   await refreshPlayerState()
   await checkExistingAnswer()
 
-  gameStateInterval =
-    window.setInterval(() => {
-      refreshPlayerState()
-    }, 2000)
+  gameStateInterval = window.setInterval(
+    refreshPlayerState,
+    1500,
+  )
+
+  window.addEventListener(
+    'focus',
+    handleWindowFocus,
+  )
+
+  document.addEventListener(
+    'visibilitychange',
+    handleVisibilityChange,
+  )
 })
 
 onUnmounted(() => {
   window.clearInterval(
     gameStateInterval,
+  )
+
+  window.removeEventListener(
+    'focus',
+    handleWindowFocus,
+  )
+
+  document.removeEventListener(
+    'visibilitychange',
+    handleVisibilityChange,
   )
 })
 
