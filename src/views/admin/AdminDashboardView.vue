@@ -553,7 +553,7 @@ watch(
       </div>
     </AppCard>
 
-    <AppCard class="admin-card hero-card">
+    <!-- <AppCard class="admin-card hero-card">
       <template
         v-if="
           [
@@ -603,7 +603,7 @@ watch(
           Start the next round when everyone is ready.
         </p>
       </template>
-    </AppCard>
+    </AppCard> -->
 
     <AppCard v-if="gameStore.currentQuestion" class="admin-card">
       <small>Current Question Progress</small>
