@@ -1,4 +1,7 @@
-import { createRouter, createWebHistory } from 'vue-router'
+import {
+  createRouter,
+  createWebHistory,
+} from 'vue-router'
 
 import LoginView from '@/views/auth/LoginView.vue'
 
@@ -30,6 +33,7 @@ const routes = [
       role: 'player',
     },
   },
+
   {
     path: '/profile',
     name: 'player-profile',
@@ -48,6 +52,7 @@ const routes = [
       role: 'admin',
     },
   },
+
   {
     path: '/admin/rounds',
     name: 'admin-rounds',
@@ -57,6 +62,7 @@ const routes = [
       role: 'admin',
     },
   },
+
   {
     path: '/admin/answers',
     name: 'admin-answers',
@@ -66,6 +72,7 @@ const routes = [
       role: 'admin',
     },
   },
+
   {
     path: '/admin/leaderboard',
     name: 'admin-leaderboard',
@@ -75,6 +82,7 @@ const routes = [
       role: 'admin',
     },
   },
+
   {
     path: '/admin/players',
     name: 'admin-players',
@@ -84,6 +92,7 @@ const routes = [
       role: 'admin',
     },
   },
+
   {
     path: '/admin/settings',
     name: 'admin-settings',
@@ -100,16 +109,58 @@ const router = createRouter({
   routes,
 })
 
-router.beforeEach((to) => {
+router.beforeEach(async (to) => {
   const authStore = useAuthStore()
 
-  if (to.meta.requiresAuth && !authStore.user) {
-    return '/'
+  if (to.meta.requiresAuth) {
+    if (!authStore.user) {
+      return {
+        path: '/',
+        query: {
+          redirect: to.fullPath,
+        },
+      }
+    }
+
+    const validationResult =
+      await authStore.validateCurrentUser()
+
+    if (!validationResult.success) {
+      return {
+        path: '/',
+        query: {
+          account:
+            'session-invalid',
+        },
+      }
+    }
   }
 
-  if (to.meta.role && authStore.user?.role !== to.meta.role) {
-    return authStore.user?.role === 'admin' ? '/admin' : '/app'
+  if (
+    to.meta.role &&
+    authStore.user?.role !== to.meta.role
+  ) {
+    return authStore.user?.role ===
+      'admin'
+      ? '/admin'
+      : '/app'
   }
+
+  /*
+   * Prevent a currently logged-in user from
+   * returning to the login page unnecessarily.
+   */
+  if (
+    to.name === 'login' &&
+    authStore.user
+  ) {
+    return authStore.user.role ===
+      'admin'
+      ? '/admin'
+      : '/app'
+  }
+
+  return true
 })
 
 export default router
