@@ -1,9 +1,6 @@
 <script setup>
 import { ref, watch } from 'vue'
-import {
-  Image as ImageIcon,
-  ScrollText,
-} from 'lucide-vue-next'
+import { ScrollText } from 'lucide-vue-next'
 
 import AppButton from '@/components/base/AppButton.vue'
 import AppCard from '@/components/base/AppCard.vue'
@@ -76,15 +73,11 @@ watch(
       </div>
     </div>
 
-    <div class="icon-circle">
-      <ImageIcon
-        v-if="question.type === 'image'"
-        :size="64"
-        stroke-width="1.6"
-      />
-
+    <div
+      v-if="question.type !== 'image'"
+      class="icon-circle"
+    >
       <ScrollText
-        v-else
         :size="64"
         stroke-width="1.6"
       />
@@ -183,6 +176,7 @@ watch(
   display: grid;
   gap: 22px;
   padding-top: 22px;
+  padding-bottom: 140px;
 }
 
 .question-header {
