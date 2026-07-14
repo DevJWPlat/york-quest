@@ -160,13 +160,6 @@ watch(
       <QuestCompleteScreen
         v-else-if="gameStore.gameState === 'questComplete'"
       />
-  
-
-    <div class="dev-controls">
-      <button @click="gameStore.startRound(1)">Start Round</button>
-      <button @click="gameStore.startNextQuestion()">Next Question</button>
-      <button @click="gameStore.completeRound()">Complete Round</button>
-    </div>
     
   </PlayerShell>
 
