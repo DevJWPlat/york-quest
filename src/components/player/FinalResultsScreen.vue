@@ -1,9 +1,11 @@
 <script setup>
 import {
   computed,
+  nextTick,
   onMounted,
   onUnmounted,
   ref,
+  watch,
 } from 'vue'
 
 import {
@@ -12,12 +14,14 @@ import {
   Trophy,
 } from 'lucide-vue-next'
 
+import confetti from 'canvas-confetti'
+
 import AppAvatar from '@/components/base/AppAvatar.vue'
 import AppCard from '@/components/base/AppCard.vue'
 
 import { useUsersStore } from '@/stores/usersStore'
 
-defineProps({
+const props = defineProps({
   showResults: {
     type: Boolean,
     default: false,
@@ -28,6 +32,11 @@ defineProps({
     default: false,
   },
 })
+
+const confettiCanvas = ref(null)
+
+let fireConfetti
+let finalConfettiTimers = []
 
 const usersStore = useUsersStore()
 
@@ -223,6 +232,93 @@ function formatNames(names) {
   }`
 }
 
+const confettiColors = [
+  '#d6b36a',
+  '#f1d28d',
+  '#ffe0a0',
+  '#b88b3f',
+]
+
+function clearConfettiTimers() {
+  finalConfettiTimers.forEach((timer) => {
+    window.clearTimeout(timer)
+  })
+
+  finalConfettiTimers = []
+}
+
+function launchFinalConfetti() {
+  if (!fireConfetti) return
+
+  clearConfettiTimers()
+
+  fireConfetti({
+    particleCount: 75,
+    angle: 60,
+    spread: 58,
+    startVelocity: 44,
+    origin: {
+      x: 0,
+      y: 0.62,
+    },
+    colors: confettiColors,
+    gravity: 0.9,
+    scalar: 1,
+    ticks: 220,
+  })
+
+  fireConfetti({
+    particleCount: 75,
+    angle: 120,
+    spread: 58,
+    startVelocity: 44,
+    origin: {
+      x: 1,
+      y: 0.62,
+    },
+    colors: confettiColors,
+    gravity: 0.9,
+    scalar: 1,
+    ticks: 220,
+  })
+
+  finalConfettiTimers.push(
+    window.setTimeout(() => {
+      fireConfetti?.({
+        particleCount: 110,
+        spread: 85,
+        startVelocity: 38,
+        origin: {
+          x: 0.5,
+          y: 0.28,
+        },
+        colors: confettiColors,
+        gravity: 0.85,
+        scalar: 0.95,
+        ticks: 240,
+      })
+    }, 350),
+  )
+
+  finalConfettiTimers.push(
+    window.setTimeout(() => {
+      fireConfetti?.({
+        particleCount: 65,
+        spread: 100,
+        startVelocity: 28,
+        origin: {
+          x: 0.5,
+          y: 0.18,
+        },
+        colors: confettiColors,
+        gravity: 0.7,
+        scalar: 0.8,
+        ticks: 260,
+      })
+    }, 750),
+  )
+}
+
 async function loadLeaderboard() {
   try {
     const response = await fetch(
@@ -279,6 +375,10 @@ onUnmounted(() => {
 
 <template>
   <section class="quest-complete-screen">
+    <canvas
+      ref="confettiCanvas"
+      class="confetti-canvas"
+    />
     <header class="complete-heading">
       <div class="trophy-circle">
         <Trophy
@@ -438,6 +538,9 @@ onUnmounted(() => {
 
 <style scoped>
 .quest-complete-screen {
+  position: relative;
+  isolation: isolate;
+
   display: grid;
   min-height: calc(100vh - 70px);
   align-content: start;
@@ -451,6 +554,9 @@ onUnmounted(() => {
 }
 
 .trophy-circle {
+  position: relative;
+  z-index: 3;
+
   display: grid;
   width: 138px;
   height: 138px;
@@ -458,10 +564,31 @@ onUnmounted(() => {
   margin: 0 auto 20px;
   border: 1px solid var(--gold);
   border-radius: 50%;
+  background: var(--bg);
   color: var(--gold);
   box-shadow:
     0 0 30px
     rgba(214, 179, 106, 0.18);
+}
+
+.confetti-canvas {
+  position: fixed;
+  z-index: 1;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.complete-heading,
+.result-card,
+.leaderboard-heading,
+.leaderboard-list,
+.celebration-message,
+.state-message,
+.error-message {
+  position: relative;
+  z-index: 2;
 }
 
 small {
