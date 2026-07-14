@@ -24,6 +24,7 @@ const showMarkAnswersModal = ref(false)
 const showEndRoundWarning = ref(false)
 const showRoundResultsModal = ref(false)
 const showNextQuestionWarning = ref(false)
+const showFinishQuestWarning = ref(false)
 
 const players = computed(() => {
   return usersStore.players
@@ -245,8 +246,25 @@ async function startNextRound() {
   await gameStore.startRound(nextRound.value.id)
 }
 
-async function finishQuest() {
+function requestFinishQuest() {
+  showFinishQuestWarning.value = true
+}
+
+async function confirmFinishQuest() {
+  showFinishQuestWarning.value = false
   await gameStore.endQuest()
+}
+
+async function showFinalLeaderboardToPlayers() {
+  await gameStore.showFinalLeaderboard()
+}
+
+async function showFinalResultsToPlayers() {
+  await gameStore.showFinalResults()
+}
+
+async function hideFinalResultsFromPlayers() {
+  await gameStore.hideFinalResults()
 }
 
 async function showLeaderboardToPlayers() {
@@ -308,11 +326,73 @@ watch(
       <small>Round Control</small>
 
       <!-- No round has started yet -->
-      <div v-if="!gameStore.currentRound" class="control-grid">
-        <AppButton full @click="startFirstAvailableRound">
+      <div
+        v-if="
+          [
+            'questComplete',
+            'finalLeaderboard',
+            'finalResults',
+          ].includes(gameStore.gameState)
+        "
+        class="control-grid"
+      >
+        <p class="game-complete-message">
+          Players are currently
+          {{
+            gameStore.gameState === 'questComplete'
+              ? 'waiting for the final reveal.'
+              : gameStore.gameState === 'finalLeaderboard'
+                ? 'viewing the final leaderboard.'
+                : 'viewing the winner, loser and final standings.'
+          }}
+        </p>
+
+        <AppButton
+          variant="secondary"
+          full
+          :disabled="
+            gameStore.gameState === 'finalResults'
+          "
+          @click="showFinalResultsToPlayers"
+        >
+          Show Winner &amp; Loser
+        </AppButton>
+
+        <AppButton
+          full
+          :disabled="
+            gameStore.gameState === 'finalLeaderboard'
+          "
+          @click="showFinalLeaderboardToPlayers"
+        >
+          Show Final Leaderboard
+        </AppButton>
+
+        <AppButton
+          variant="dark"
+          full
+          :disabled="
+            gameStore.gameState === 'questComplete'
+          "
+          @click="hideFinalResultsFromPlayers"
+        >
+          Hide Results
+        </AppButton>
+      </div>
+
+      <!-- No round has started yet -->
+      <div
+        v-else-if="!gameStore.currentRound"
+        class="control-grid"
+      >
+        <AppButton
+          full
+          @click="startFirstAvailableRound"
+        >
           Start First Round
         </AppButton>
       </div>
+
 
       <div v-else class="control-grid">
         <!-- Round intro -->
@@ -391,7 +471,7 @@ watch(
           <AppButton
             v-else
             full
-            @click="finishQuest"
+            @click="requestFinishQuest"
           >
             Finish Quest
           </AppButton>
@@ -418,7 +498,7 @@ watch(
           <AppButton
             v-else
             full
-            @click="finishQuest"
+            @click="requestFinishQuest"
           >
             Finish Quest
           </AppButton>
@@ -431,22 +511,56 @@ watch(
       </div>
     </AppCard>
 
-    <AppCard v-if="gameStore.currentRound" class="admin-card">
-      <small>Questions</small>
+    <AppCard class="admin-card hero-card">
+      <template
+        v-if="
+          [
+            'questComplete',
+            'finalLeaderboard',
+            'finalResults',
+          ].includes(gameStore.gameState)
+        "
+      >
+        <small>Game Complete</small>
 
-      <div class="question-list">
-        <button
-          v-for="question in gameStore.currentRoundQuestions"
-          :key="question.id"
-          type="button"
-          class="question-row"
-          :class="{ active: gameStore.activeQuestionId === question.id }"
-          @click="gameStore.startQuestion(question.id)"
-        >
-          <span>Question {{ question.order }}</span>
-          <strong>{{ question.text }}</strong>
-        </button>
-      </div>
+        <h2>Quest Complete</h2>
+
+        <p>
+          Josh's York Quest has finished. Choose what the
+          players can see below.
+        </p>
+
+        <div class="status-pill">
+          {{
+            gameStore.gameState === 'questComplete'
+              ? 'Results Hidden'
+              : gameStore.gameState === 'finalLeaderboard'
+                ? 'Final Leaderboard Showing'
+                : 'Winner & Loser Showing'
+          }}
+        </div>
+      </template>
+
+      <template v-else-if="gameStore.currentRound">
+        <small>Current Game</small>
+
+        <h2>{{ gameStore.currentRound.title }}</h2>
+        <p>{{ gameStore.currentRound.pubName }}</p>
+
+        <div class="status-pill">
+          {{ gameStore.gameState }}
+        </div>
+      </template>
+
+      <template v-else>
+        <small>Current Game</small>
+
+        <h2>No active round</h2>
+
+        <p>
+          Start the next round when everyone is ready.
+        </p>
+      </template>
     </AppCard>
 
     <AppCard v-if="gameStore.currentQuestion" class="admin-card">
@@ -504,6 +618,14 @@ watch(
       :show="showRoundResultsModal"
       @close="showRoundResultsModal = false"
       @end-round="handleEndRoundFromResults"
+    />
+    <AppConfirmModal
+      :show="showFinishQuestWarning"
+      title="Finish the Quest?"
+      message="This will complete the game and move every player to the Quest Complete waiting screen. Final results will remain hidden until you choose to reveal them."
+      confirm-label="Finish Quest"
+      @cancel="showFinishQuestWarning = false"
+      @confirm="confirmFinishQuest"
     />
   </AdminShell>
 </template>
@@ -605,5 +727,15 @@ p {
 .player-status.waiting {
   background: rgba(214, 179, 106, 0.08);
   color: var(--muted);
+}
+
+.game-complete-message {
+  margin: 0 0 6px;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--card);
+  text-align: center;
+  line-height: 1.5;
 }
 </style>

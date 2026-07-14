@@ -1140,6 +1140,24 @@ export const useGameStore = defineStore('game', () => {
     return saveGameState()
   }
 
+  async function showFinalLeaderboard() {
+    gameState.value = 'finalLeaderboard'
+  
+    return saveGameState()
+  }
+  
+  async function showFinalResults() {
+    gameState.value = 'finalResults'
+  
+    return saveGameState()
+  }
+  
+  async function hideFinalResults() {
+    gameState.value = 'questComplete'
+  
+    return saveGameState()
+  }
+
   return {
     rounds,
     questions,
@@ -1180,5 +1198,9 @@ export const useGameStore = defineStore('game', () => {
     addQuestion,
     updateQuestion,
     deleteQuestion,
+
+    showFinalLeaderboard,
+    showFinalResults,
+    hideFinalResults,
   }
 })
