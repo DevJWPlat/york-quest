@@ -13,6 +13,7 @@ import AppCard from '@/components/base/AppCard.vue'
 import AppConfirmModal from '@/components/base/AppConfirmModal.vue'
 import AdminMarkAnswersModal from '@/components/admin/AdminMarkAnswersModal.vue'
 import AdminRoundResultsModal from '@/components/admin/AdminRoundResultsModal.vue'
+import AdminTieBreakerControlModal from '@/components/admin/AdminTieBreakerControlModal.vue'
 
 import { useGameStore } from '@/stores/gameStore'
 import { useUsersStore } from '@/stores/usersStore'
@@ -28,6 +29,7 @@ const showEndRoundWarning = ref(false)
 const showRoundResultsModal = ref(false)
 const showNextQuestionWarning = ref(false)
 const showFinishQuestWarning = ref(false)
+const showTieBreakerControlModal = ref(false)
 
 const router = useRouter()
 
@@ -172,6 +174,10 @@ const isLastQuestion = computed(() => {
       gameStore.currentRoundQuestions.length -
         1
   )
+})
+
+const activeTieBreakerSessionId = computed(() => {
+  return gameStore.activeTieBreakerSessionId
 })
 
 const currentRoundIndex = computed(() => {
@@ -587,6 +593,34 @@ async function startTieBreaker(payload) {
   }
 }
 
+function openTieBreakerControl() {
+  if (!gameStore.activeTieBreakerSessionId) {
+    dashboardError.value =
+      'There is no active tie-breaker session.'
+
+    return
+  }
+
+  clearDashboardError()
+  showTieBreakerControlModal.value = true
+}
+
+function closeTieBreakerControl() {
+  showTieBreakerControlModal.value = false
+}
+
+async function handleTieBreakerCompleted() {
+  showTieBreakerControlModal.value = false
+
+  await gameStore.loadGameState()
+}
+
+async function handleTieBreakerCancelled() {
+  showTieBreakerControlModal.value = false
+
+  await gameStore.loadGameState()
+}
+
 onMounted(async () => {
   await usersStore.loadUsers()
   await gameStore.loadGameState()
@@ -612,6 +646,43 @@ watch(
   () => gameStore.currentQuestion?.id,
   async () => {
     await refreshAnswers()
+  },
+)
+
+watch(
+  () => gameStore.gameState,
+  (newState) => {
+    if (
+      newState === 'tieBreaker' &&
+      gameStore.activeTieBreakerSessionId
+    ) {
+      showRoundResultsModal.value = false
+      showTieBreakerSetupModal.value = false
+      showTieBreakerControlModal.value = true
+
+      return
+    }
+
+    if (newState !== 'tieBreaker') {
+      showTieBreakerControlModal.value = false
+    }
+  },
+  {
+    immediate: true,
+  },
+)
+
+watch(
+  () =>
+    gameStore.activeTieBreakerSessionId,
+  (sessionId) => {
+    if (
+      gameStore.gameState ===
+        'tieBreaker' &&
+      sessionId
+    ) {
+      showTieBreakerControlModal.value = true
+    }
   },
 )
 </script>
@@ -649,8 +720,7 @@ watch(
         <h2>No active round</h2>
 
         <p>
-          Start the next round when everyone
-          is ready.
+          Start the next round when everyone is ready.
         </p>
       </template>
     </AppCard>
@@ -664,18 +734,15 @@ watch(
       <h2>Quest Complete</h2>
 
       <p>
-        Josh's York Quest has finished.
-        Choose what the players can see
-        below.
+        Josh's York Quest has finished. Choose what the
+        players can see below.
       </p>
 
       <div class="status-pill">
         {{
-          gameStore.gameState ===
-          'questComplete'
+          gameStore.gameState === 'questComplete'
             ? 'Results Hidden'
-            : gameStore.gameState ===
-                'finalLeaderboard'
+            : gameStore.gameState === 'finalLeaderboard'
               ? 'Final Leaderboard Showing'
               : 'Winner & Loser Showing'
         }}
@@ -698,11 +765,9 @@ watch(
         <p class="game-complete-message">
           Players are currently
           {{
-            gameStore.gameState ===
-            'questComplete'
+            gameStore.gameState === 'questComplete'
               ? 'waiting for the final reveal.'
-              : gameStore.gameState ===
-                  'finalLeaderboard'
+              : gameStore.gameState === 'finalLeaderboard'
                 ? 'viewing the final leaderboard.'
                 : 'viewing the winner and loser.'
           }}
@@ -713,14 +778,12 @@ watch(
           full
           :disabled="
             isActionRunning ||
-            gameStore.gameState ===
-              'finalResults'
+            gameStore.gameState === 'finalResults'
           "
           @click="showFinalResultsToPlayers"
         >
           {{
-            activeAction ===
-            'showFinalResults'
+            activeAction === 'showFinalResults'
               ? 'Showing Winner & Loser...'
               : 'Show Winner & Loser'
           }}
@@ -730,16 +793,12 @@ watch(
           full
           :disabled="
             isActionRunning ||
-            gameStore.gameState ===
-              'finalLeaderboard'
+            gameStore.gameState === 'finalLeaderboard'
           "
-          @click="
-            showFinalLeaderboardToPlayers
-          "
+          @click="showFinalLeaderboardToPlayers"
         >
           {{
-            activeAction ===
-            'showFinalLeaderboard'
+            activeAction === 'showFinalLeaderboard'
               ? 'Showing Leaderboard...'
               : 'Show Final Leaderboard'
           }}
@@ -750,16 +809,12 @@ watch(
           full
           :disabled="
             isActionRunning ||
-            gameStore.gameState ===
-              'questComplete'
+            gameStore.gameState === 'questComplete'
           "
-          @click="
-            hideFinalResultsFromPlayers
-          "
+          @click="hideFinalResultsFromPlayers"
         >
           {{
-            activeAction ===
-            'hideFinalResults'
+            activeAction === 'hideFinalResults'
               ? 'Hiding Results...'
               : 'Hide Results'
           }}
@@ -779,8 +834,7 @@ watch(
           @click="startFirstAvailableRound"
         >
           {{
-            activeAction ===
-            'startFirstRound'
+            activeAction === 'startFirstRound'
               ? 'Starting Round...'
               : 'Start First Round'
           }}
@@ -800,6 +854,29 @@ watch(
         <template
           v-if="
             gameStore.gameState ===
+            'tieBreaker'
+          "
+        >
+          <p class="tie-breaker-message">
+            A round tie-breaker is currently in progress.
+            Open the control panel to view answers and
+            choose the official round winner.
+          </p>
+
+          <AppButton
+            full
+            :disabled="
+              !activeTieBreakerSessionId
+            "
+            @click="openTieBreakerControl"
+          >
+            Open Tie-Breaker Control
+          </AppButton>
+        </template>
+
+        <template
+          v-else-if="
+            gameStore.gameState ===
             'roundIntro'
           "
         >
@@ -807,14 +884,12 @@ watch(
             full
             :disabled="
               isActionRunning ||
-              !gameStore
-                .currentRoundQuestions.length
+              !gameStore.currentRoundQuestions.length
             "
             @click="startFirstQuestion"
           >
             {{
-              activeAction ===
-              'startQuestion'
+              activeAction === 'startQuestion'
                 ? 'Starting Question...'
                 : 'Start Question 1'
             }}
@@ -822,12 +897,10 @@ watch(
 
           <p
             v-if="
-              !gameStore
-                .currentRoundQuestions.length
+              !gameStore.currentRoundQuestions.length
             "
           >
-            This round does not have any
-            questions yet.
+            This round does not have any questions yet.
           </p>
         </template>
 
@@ -845,8 +918,7 @@ watch(
             @click="requestNextQuestion"
           >
             {{
-              activeAction ===
-              'nextQuestion'
+              activeAction === 'nextQuestion'
                 ? 'Starting Next Question...'
                 : 'Start Next Question'
             }}
@@ -859,8 +931,7 @@ watch(
             @click="openRoundResults"
           >
             {{
-              activeAction ===
-              'loadResults'
+              activeAction === 'loadResults'
                 ? 'Loading Results...'
                 : 'View Round Results'
             }}
@@ -914,8 +985,7 @@ watch(
             @click="showLeaderboardToPlayers"
           >
             {{
-              activeAction ===
-              'showLeaderboard'
+              activeAction === 'showLeaderboard'
                 ? 'Showing Leaderboard...'
                 : 'Show Leaderboard to Players'
             }}
@@ -941,8 +1011,7 @@ watch(
             @click="requestFinishQuest"
           >
             {{
-              activeAction ===
-              'finishQuest'
+              activeAction === 'finishQuest'
                 ? 'Finishing Quest...'
                 : 'Finish Quest'
             }}
@@ -959,13 +1028,10 @@ watch(
             variant="secondary"
             full
             :disabled="isActionRunning"
-            @click="
-              hideLeaderboardFromPlayers
-            "
+            @click="hideLeaderboardFromPlayers"
           >
             {{
-              activeAction ===
-              'hideLeaderboard'
+              activeAction === 'hideLeaderboard'
                 ? 'Hiding Leaderboard...'
                 : 'Hide Leaderboard'
             }}
@@ -991,8 +1057,7 @@ watch(
             @click="requestFinishQuest"
           >
             {{
-              activeAction ===
-              'finishQuest'
+              activeAction === 'finishQuest'
                 ? 'Finishing Quest...'
                 : 'Finish Quest'
             }}
@@ -1004,7 +1069,9 @@ watch(
     <AppCard
       v-if="
         gameStore.currentQuestion &&
-        !isGameComplete
+        !isGameComplete &&
+        gameStore.gameState !==
+          'tieBreaker'
       "
       class="admin-card"
     >
@@ -1057,7 +1124,9 @@ watch(
       title="End This Round?"
       message="Are you sure? Any players who have not submitted an answer will no longer be able to answer this question."
       confirm-label="End Round"
-      @cancel="showEndRoundWarning = false"
+      @cancel="
+        showEndRoundWarning = false
+      "
       @confirm="confirmEndRound"
     />
 
@@ -1087,21 +1156,54 @@ watch(
 
     <AdminRoundResultsModal
       :show="showRoundResultsModal"
-      @close="showRoundResultsModal = false"
-      @end-round="handleEndRoundFromResults"
-      @use-tie-breaker="handleUseTieBreaker"
-      @create-tie-breaker="handleCreateTieBreaker"
+      @close="
+        showRoundResultsModal = false
+      "
+      @end-round="
+        handleEndRoundFromResults
+      "
+      @use-tie-breaker="
+        handleUseTieBreaker
+      "
+      @create-tie-breaker="
+        handleCreateTieBreaker
+      "
     />
+
     <AdminTieBreakerSetupModal
       :show="showTieBreakerSetupModal"
       :round="tieBreakerSetup.round"
-      :tie-breaker="tieBreakerSetup.tieBreaker"
-      :round-scores="tieBreakerSetup.roundScores"
-      :suggested-players="tieBreakerSetup.suggestedPlayers"
+      :tie-breaker="
+        tieBreakerSetup.tieBreaker
+      "
+      :round-scores="
+        tieBreakerSetup.roundScores
+      "
+      :suggested-players="
+        tieBreakerSetup.suggestedPlayers
+      "
       :starting="startingTieBreaker"
       :error="tieBreakerError"
       @close="closeTieBreakerSetup"
       @start="startTieBreaker"
+    />
+
+    <AdminTieBreakerControlModal
+      :show="
+        showTieBreakerControlModal
+      "
+      :session-id="
+        activeTieBreakerSessionId
+      "
+      @close="
+        closeTieBreakerControl
+      "
+      @completed="
+        handleTieBreakerCompleted
+      "
+      @cancelled="
+        handleTieBreakerCancelled
+      "
     />
   </AdminShell>
 </template>
@@ -1214,5 +1316,18 @@ p {
   background:
     rgba(239, 68, 68, 0.12);
   color: #fecaca;
+}
+
+.tie-breaker-message {
+  margin: 0;
+  padding: 14px;
+  border: 1px solid
+    rgba(214, 179, 106, 0.4);
+  border-radius: 12px;
+  background:
+    rgba(214, 179, 106, 0.08);
+  color: var(--muted);
+  text-align: center;
+  line-height: 1.5;
 }
 </style>
