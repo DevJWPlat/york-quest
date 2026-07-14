@@ -17,6 +17,9 @@ import AdminRoundResultsModal from '@/components/admin/AdminRoundResultsModal.vu
 import { useGameStore } from '@/stores/gameStore'
 import { useUsersStore } from '@/stores/usersStore'
 
+import { useRouter } from 'vue-router'
+import AdminTieBreakerSetupModal from '@/components/admin/AdminTieBreakerSetupModal.vue'
+
 const gameStore = useGameStore()
 const usersStore = useUsersStore()
 
@@ -25,6 +28,20 @@ const showEndRoundWarning = ref(false)
 const showRoundResultsModal = ref(false)
 const showNextQuestionWarning = ref(false)
 const showFinishQuestWarning = ref(false)
+
+const router = useRouter()
+
+const showTieBreakerSetupModal = ref(false)
+
+const tieBreakerSetup = ref({
+  round: null,
+  tieBreaker: null,
+  roundScores: [],
+  suggestedPlayers: [],
+})
+
+const tieBreakerError = ref('')
+const startingTieBreaker = ref(false)
 
 const activeAction = ref('')
 const dashboardError = ref('')
@@ -480,6 +497,94 @@ async function hideLeaderboardFromPlayers() {
     () => gameStore.hideLeaderboard(),
     'Unable to hide the leaderboard.',
   )
+}
+
+function handleUseTieBreaker(payload) {
+  showRoundResultsModal.value = false
+  tieBreakerError.value = ''
+
+  tieBreakerSetup.value = {
+    round: gameStore.currentRound,
+    tieBreaker: payload.tieBreaker,
+    roundScores: payload.roundScores || [],
+    suggestedPlayers: payload.tiedPlayers || [],
+  }
+
+  showTieBreakerSetupModal.value = true
+}
+
+async function handleCreateTieBreaker(payload) {
+  showRoundResultsModal.value = false
+
+  await router.push({
+    path: '/admin/rounds',
+    query: {
+      roundId: String(payload.roundId),
+      section: 'tie-breaker',
+    },
+  })
+}
+
+function closeTieBreakerSetup() {
+  if (startingTieBreaker.value) {
+    return
+  }
+
+  showTieBreakerSetupModal.value = false
+  tieBreakerError.value = ''
+}
+
+async function startTieBreaker(payload) {
+  if (startingTieBreaker.value) {
+    return
+  }
+
+  tieBreakerError.value = ''
+  startingTieBreaker.value = true
+
+  try {
+    const response = await fetch(
+      '/api/tie-breaker-sessions',
+      {
+        method: 'POST',
+
+        headers: {
+          'Content-Type': 'application/json',
+        },
+
+        body: JSON.stringify({
+          roundId: payload.roundId,
+          tieBreakerId: payload.tieBreakerId,
+          participantUserIds:
+            payload.participantUserIds,
+        }),
+      },
+    )
+
+    const data = await response.json()
+
+    if (!response.ok) {
+      throw new Error(
+        data.error ||
+          'Unable to start the tie-breaker.',
+      )
+    }
+
+    showTieBreakerSetupModal.value = false
+
+    await gameStore.loadGameState()
+  } catch (error) {
+    console.error(
+      'Failed to start tie-breaker:',
+      error,
+    )
+
+    tieBreakerError.value =
+      error.message ||
+      'Unable to start the tie-breaker.'
+  } finally {
+    startingTieBreaker.value = false
+  }
 }
 
 onMounted(async () => {
@@ -982,12 +1087,21 @@ watch(
 
     <AdminRoundResultsModal
       :show="showRoundResultsModal"
-      @close="
-        showRoundResultsModal = false
-      "
-      @end-round="
-        handleEndRoundFromResults
-      "
+      @close="showRoundResultsModal = false"
+      @end-round="handleEndRoundFromResults"
+      @use-tie-breaker="handleUseTieBreaker"
+      @create-tie-breaker="handleCreateTieBreaker"
+    />
+    <AdminTieBreakerSetupModal
+      :show="showTieBreakerSetupModal"
+      :round="tieBreakerSetup.round"
+      :tie-breaker="tieBreakerSetup.tieBreaker"
+      :round-scores="tieBreakerSetup.roundScores"
+      :suggested-players="tieBreakerSetup.suggestedPlayers"
+      :starting="startingTieBreaker"
+      :error="tieBreakerError"
+      @close="closeTieBreakerSetup"
+      @start="startTieBreaker"
     />
   </AdminShell>
 </template>
