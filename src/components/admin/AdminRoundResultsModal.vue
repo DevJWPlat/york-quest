@@ -7,6 +7,7 @@ import {
 
 import {
   Beer,
+  CheckCircle2,
   Scale,
   Trophy,
 } from 'lucide-vue-next'
@@ -37,6 +38,7 @@ const roundsStore = useRoundsStore()
 const usersStore = useUsersStore()
 
 const roundAnswers = ref([])
+const latestTieBreakerSession = ref(null)
 
 const loading = ref(false)
 const error = ref('')
@@ -98,7 +100,7 @@ const roundScores = computed(() => {
     })
 })
 
-const winners = computed(() => {
+const scoreWinners = computed(() => {
   if (!roundScores.value.length) {
     return []
   }
@@ -129,7 +131,42 @@ const losers = computed(() => {
 })
 
 const hasWinnerTie = computed(() => {
-  return winners.value.length > 1
+  return scoreWinners.value.length > 1
+})
+
+const hasCompletedTieBreaker = computed(() => {
+  return Boolean(
+    latestTieBreakerSession.value?.status ===
+      'complete' &&
+    latestTieBreakerSession.value
+      ?.winnerUserId,
+  )
+})
+
+const tieBreakerWinner = computed(() => {
+  if (!hasCompletedTieBreaker.value) {
+    return null
+  }
+
+  const winnerUserId = Number(
+    latestTieBreakerSession.value
+      .winnerUserId,
+  )
+
+  return (
+    roundScores.value.find(
+      (player) =>
+        Number(player.id) === winnerUserId,
+    ) || null
+  )
+})
+
+const officialWinners = computed(() => {
+  if (tieBreakerWinner.value) {
+    return [tieBreakerWinner.value]
+  }
+
+  return scoreWinners.value
 })
 
 const hasUsableTieBreaker = computed(() => {
@@ -144,26 +181,93 @@ const tieBreakerButtonLabel = computed(() => {
     : 'Create Tie-Breaker'
 })
 
+const winnerHeading = computed(() => {
+  if (hasCompletedTieBreaker.value) {
+    return 'Tie-Breaker Winner'
+  }
+
+  return hasWinnerTie.value
+    ? 'Joint Winners'
+    : 'Winner'
+})
+
+function isScoreWinner(player) {
+  if (!scoreWinners.value.length) {
+    return false
+  }
+
+  return (
+    Number(player.points) ===
+    Number(scoreWinners.value[0].points)
+  )
+}
+
+function isOfficialWinner(player) {
+  return officialWinners.value.some(
+    (winner) =>
+      Number(winner.id) ===
+      Number(player.id),
+  )
+}
+
 function handleTieBreakerAction() {
-  if (!gameStore.currentRound) {
+  if (
+    !gameStore.currentRound ||
+    hasCompletedTieBreaker.value
+  ) {
     return
   }
 
   if (hasUsableTieBreaker.value) {
     emit('use-tie-breaker', {
-      roundId: gameStore.currentRound.id,
+      roundId:
+        gameStore.currentRound.id,
+
       tieBreaker:
         currentRoundTieBreaker.value,
-      tiedPlayers: winners.value,
-      roundScores: roundScores.value,
+
+      tiedPlayers:
+        scoreWinners.value,
+
+      roundScores:
+        roundScores.value,
     })
 
     return
   }
 
   emit('create-tie-breaker', {
-    roundId: gameStore.currentRound.id,
+    roundId:
+      gameStore.currentRound.id,
   })
+}
+
+async function parseResponse(
+  response,
+  fallbackMessage,
+) {
+  const responseText =
+    await response.text()
+
+  let data = null
+
+  if (responseText) {
+    try {
+      data = JSON.parse(responseText)
+    } catch {
+      throw new Error(
+        `${fallbackMessage} The server returned an invalid response.`,
+      )
+    }
+  }
+
+  if (!response.ok) {
+    throw new Error(
+      data?.error || fallbackMessage,
+    )
+  }
+
+  return data
 }
 
 async function loadRoundResults() {
@@ -181,6 +285,7 @@ async function loadRoundResults() {
     const [
       answersResponse,
       tieBreakerResponse,
+      sessionResponse,
     ] = await Promise.all([
       fetch(
         `/api/answers?roundId=${encodeURIComponent(
@@ -203,31 +308,48 @@ async function loadRoundResults() {
           },
         },
       ),
+
+      fetch(
+        `/api/tie-breaker-sessions?roundId=${encodeURIComponent(
+          roundId,
+        )}`,
+        {
+          headers: {
+            Accept: 'application/json',
+          },
+        },
+      ),
     ])
 
-    if (!answersResponse.ok) {
-      throw new Error(
+    const [
+      answers,
+      tieBreaker,
+      tieBreakerSession,
+    ] = await Promise.all([
+      parseResponse(
+        answersResponse,
         'Unable to load round answers.',
-      )
-    }
+      ),
 
-    if (!tieBreakerResponse.ok) {
-      throw new Error(
+      parseResponse(
+        tieBreakerResponse,
         'Unable to load the tie-breaker.',
-      )
-    }
+      ),
 
-    const [answers, tieBreaker] =
-      await Promise.all([
-        answersResponse.json(),
-        tieBreakerResponse.json(),
-      ])
+      parseResponse(
+        sessionResponse,
+        'Unable to load the latest tie-breaker session.',
+      ),
+    ])
 
     roundAnswers.value = Array.isArray(
       answers,
     )
       ? answers
       : []
+
+    latestTieBreakerSession.value =
+      tieBreakerSession || null
 
     roundsStore.tieBreakers =
       roundsStore.tieBreakers.filter(
@@ -252,6 +374,7 @@ async function loadRoundResults() {
       'The round results could not be loaded.'
 
     roundAnswers.value = []
+    latestTieBreakerSession.value = null
   } finally {
     loading.value = false
   }
@@ -261,6 +384,9 @@ watch(
   () => props.show,
   async (isOpen) => {
     if (!isOpen) {
+      latestTieBreakerSession.value =
+        null
+
       return
     }
 
@@ -322,15 +448,11 @@ watch(
               />
 
               <small>
-                {{
-                  hasWinnerTie
-                    ? 'Joint Winners'
-                    : 'Winner'
-                }}
+                {{ winnerHeading }}
               </small>
 
               <div
-                v-for="player in winners"
+                v-for="player in officialWinners"
                 :key="player.id"
                 class="player-result"
               >
@@ -349,12 +471,25 @@ watch(
                     {{ player.points }}
                     points
                   </p>
+
+                  <span
+                    v-if="
+                      hasCompletedTieBreaker
+                    "
+                    class="winner-reason"
+                  >
+                    Official winner after
+                    tie-breaker
+                  </span>
                 </div>
               </div>
             </article>
 
             <article
-              v-if="hasWinnerTie"
+              v-if="
+                hasWinnerTie &&
+                !hasCompletedTieBreaker
+              "
               class="tie-notice"
             >
               <Scale
@@ -372,6 +507,35 @@ watch(
                   choose the official round
                   winner. No points will be
                   awarded.
+                </p>
+              </div>
+            </article>
+
+            <article
+              v-else-if="
+                hasCompletedTieBreaker
+              "
+              class="tie-notice tie-complete"
+            >
+              <CheckCircle2
+                :size="30"
+                stroke-width="1.8"
+              />
+
+              <div>
+                <strong>
+                  Tie-breaker complete
+                </strong>
+
+                <p>
+                  {{
+                    latestTieBreakerSession
+                      .winnerName ||
+                    tieBreakerWinner?.name
+                  }}
+                  has been selected as the
+                  official round winner. The
+                  tied scores remain unchanged.
                 </p>
               </div>
             </article>
@@ -427,8 +591,11 @@ watch(
                 :class="{
                   tied:
                     hasWinnerTie &&
-                    player.points ===
-                      winners[0]?.points,
+                    isScoreWinner(player),
+
+                  official:
+                    hasCompletedTieBreaker &&
+                    isOfficialWinner(player),
                 }"
               >
                 <span>
@@ -437,6 +604,15 @@ watch(
 
                 <strong>
                   {{ player.name }}
+
+                  <em
+                    v-if="
+                      hasCompletedTieBreaker &&
+                      isOfficialWinner(player)
+                    "
+                  >
+                    Tie-breaker winner
+                  </em>
                 </strong>
 
                 <b>
@@ -446,7 +622,13 @@ watch(
             </div>
           </div>
 
-          <footer>
+          <footer
+            :class="{
+              'two-actions':
+                !hasWinnerTie ||
+                hasCompletedTieBreaker,
+            }"
+          >
             <AppButton
               variant="dark"
               full
@@ -456,7 +638,10 @@ watch(
             </AppButton>
 
             <AppButton
-              v-if="hasWinnerTie"
+              v-if="
+                hasWinnerTie &&
+                !hasCompletedTieBreaker
+              "
               variant="secondary"
               full
               @click="
@@ -584,6 +769,15 @@ header p {
   color: var(--muted);
 }
 
+.winner-reason {
+  display: block;
+  margin-top: 5px;
+  color: var(--gold);
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
 .tie-notice {
   display: grid;
   grid-template-columns: auto 1fr;
@@ -598,8 +792,20 @@ header p {
   color: var(--gold);
 }
 
+.tie-notice.tie-complete {
+  border-color:
+    rgba(34, 197, 94, 0.4);
+  background:
+    rgba(34, 197, 94, 0.08);
+  color: #8fd19e;
+}
+
 .tie-notice strong {
   color: var(--gold-light);
+}
+
+.tie-notice.tie-complete strong {
+  color: #bbf7d0;
 }
 
 .tie-notice p {
@@ -631,9 +837,31 @@ header p {
     rgba(214, 179, 106, 0.5);
 }
 
+.score-row.official {
+  border-color: var(--gold);
+  background:
+    rgba(214, 179, 106, 0.1);
+  box-shadow:
+    0 0 16px
+    rgba(214, 179, 106, 0.1);
+}
+
 .score-row span {
   color: var(--gold);
   font-weight: 800;
+}
+
+.score-row strong {
+  min-width: 0;
+}
+
+.score-row strong em {
+  display: block;
+  margin-top: 3px;
+  color: var(--gold);
+  font-size: 10px;
+  font-style: normal;
+  text-transform: uppercase;
 }
 
 .score-row b {
@@ -657,6 +885,11 @@ footer {
   border-top: 1px solid var(--border);
   background:
     rgba(15, 19, 26, 0.97);
+}
+
+footer.two-actions {
+  grid-template-columns:
+    repeat(2, minmax(0, 1fr));
 }
 
 .state-message,
@@ -689,7 +922,8 @@ footer {
 }
 
 @media (max-width: 430px) {
-  footer {
+  footer,
+  footer.two-actions {
     grid-template-columns: 1fr;
   }
 }
