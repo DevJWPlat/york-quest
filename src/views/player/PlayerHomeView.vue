@@ -14,6 +14,7 @@ import LiveQuestionCard from '@/components/player/LiveQuestionCard.vue'
 import SubmittedScreen from '@/components/player/SubmittedScreen.vue'
 import RoundCompleteScreen from '@/components/player/RoundCompleteScreen.vue'
 import QuestCompleteScreen from '@/components/player/QuestCompleteScreen.vue'
+import FinalResultsScreen from '@/components/player/FinalResultsScreen.vue'
 import PlayerLeaderboardScreen from '@/components/player/PlayerLeaderboardScreen.vue'
 
 import { useAuthStore } from '@/stores/authStore'
@@ -27,62 +28,83 @@ const submittingAnswer = ref(false)
 const submissionError = ref('')
 
 const hasSubmittedCurrentQuestion = computed(() => {
-  return (
+  return Boolean(
     gameStore.currentQuestion &&
-    submittedQuestionId.value === gameStore.currentQuestion.id
+    Number(submittedQuestionId.value) ===
+      Number(gameStore.currentQuestion.id),
   )
 })
 
 async function checkExistingAnswer() {
-  if (!gameStore.currentQuestion || !authStore.user) {
+  if (
+    !gameStore.currentQuestion ||
+    !authStore.user
+  ) {
     submittedQuestionId.value = null
     return
   }
 
   try {
     const params = new URLSearchParams({
-      questionId: gameStore.currentQuestion.id,
-      userId: authStore.user.id,
+      questionId: String(
+        gameStore.currentQuestion.id,
+      ),
+      userId: String(authStore.user.id),
     })
 
-    const response = await fetch(`/api/answers?${params.toString()}`)
+    const response = await fetch(
+      `/api/answers?${params.toString()}`,
+    )
 
     if (!response.ok) {
-      throw new Error('Unable to check submitted answer.')
+      throw new Error(
+        'Unable to check submitted answer.',
+      )
     }
 
     const answers = await response.json()
 
-    submittedQuestionId.value = answers.length
-      ? gameStore.currentQuestion.id
-      : null
+    submittedQuestionId.value =
+      Array.isArray(answers) &&
+      answers.length > 0
+        ? gameStore.currentQuestion.id
+        : null
   } catch (error) {
-    console.error('Failed to check existing answer:', error)
+    console.error(
+      'Failed to check existing answer:',
+      error,
+    )
   }
 }
 
 async function submitAnswer(answer) {
-  if (submittingAnswer.value) return
+  if (submittingAnswer.value) {
+    return
+  }
 
   submissionError.value = ''
   submittingAnswer.value = true
 
   try {
-    const questionId = gameStore.currentQuestion?.id
+    const questionId =
+      gameStore.currentQuestion?.id
 
-    const result = await gameStore.submitAnswer({
-      userId: authStore.user.id,
-      answer,
-    })
+    const result =
+      await gameStore.submitAnswer({
+        userId: authStore.user.id,
+        answer,
+      })
 
     if (!result?.success) {
       submissionError.value =
-        result?.error || 'Your answer could not be submitted.'
+        result?.error ||
+        'Your answer could not be submitted.'
 
       return
     }
 
-    submittedQuestionId.value = questionId
+    submittedQuestionId.value =
+      questionId
   } finally {
     submittingAnswer.value = false
   }
@@ -94,20 +116,31 @@ onMounted(async () => {
   await gameStore.loadGameState()
   await checkExistingAnswer()
 
-  gameStateInterval = window.setInterval(async () => {
-    await gameStore.loadGameState()
-  }, 2000)
+  gameStateInterval =
+    window.setInterval(async () => {
+      await gameStore.loadGameState()
+    }, 2000)
 })
 
 onUnmounted(() => {
-  window.clearInterval(gameStateInterval)
+  window.clearInterval(
+    gameStateInterval,
+  )
 })
 
 watch(
   () => gameStore.activeQuestionId,
-  async (newQuestionId, previousQuestionId) => {
-    if (newQuestionId !== previousQuestionId) {
+  async (
+    newQuestionId,
+    previousQuestionId,
+  ) => {
+    if (
+      Number(newQuestionId) !==
+      Number(previousQuestionId)
+    ) {
       submittedQuestionId.value = null
+      submissionError.value = ''
+
       await checkExistingAnswer()
     }
   },
@@ -117,28 +150,46 @@ watch(
 <template>
   <PlayerShell>
     <WaitingScreen
-      v-if="gameStore.gameState === 'waiting'"
+      v-if="
+        gameStore.gameState === 'waiting'
+      "
       :next-round="gameStore.nextRound"
     />
 
     <RoundIntroCard
-      v-else-if="gameStore.gameState === 'roundIntro'"
+      v-else-if="
+        gameStore.gameState ===
+        'roundIntro'
+      "
       :round="gameStore.currentRound"
-      :questions-count="gameStore.currentRoundQuestions.length"
+      :questions-count="
+        gameStore.currentRoundQuestions
+          .length
+      "
     />
 
     <LiveQuestionCard
       v-else-if="
-        gameStore.gameState === 'question' &&
+        gameStore.gameState ===
+          'question' &&
         !hasSubmittedCurrentQuestion
       "
-      :question="gameStore.currentQuestion"
+      :question="
+        gameStore.currentQuestion
+      "
       :question-number="
         gameStore.currentRoundQuestions.findIndex(
-          (question) => question.id === gameStore.currentQuestion.id,
+          (question) =>
+            Number(question.id) ===
+            Number(
+              gameStore.currentQuestion?.id,
+            ),
         ) + 1
       "
-      :total-questions="gameStore.currentRoundQuestions.length"
+      :total-questions="
+        gameStore.currentRoundQuestions
+          .length
+      "
       :submitting="submittingAnswer"
       :error="submissionError"
       @submit="submitAnswer"
@@ -146,44 +197,52 @@ watch(
 
     <SubmittedScreen
       v-else-if="
-        gameStore.gameState === 'question' &&
+        gameStore.gameState ===
+          'question' &&
         hasSubmittedCurrentQuestion
       "
     />
 
-    <SubmittedScreen v-else-if="gameStore.gameState === 'submitted'" />
-    <RoundCompleteScreen v-else-if="gameStore.gameState === 'roundComplete'" />
-      <PlayerLeaderboardScreen
-        v-else-if="gameStore.gameState === 'leaderboard'"
-      />
+    <SubmittedScreen
+      v-else-if="
+        gameStore.gameState ===
+        'submitted'
+      "
+    />
 
-      <QuestCompleteScreen
-        v-else-if="gameStore.gameState === 'questComplete'"
-      />
-    
+    <RoundCompleteScreen
+      v-else-if="
+        gameStore.gameState ===
+        'roundComplete'
+      "
+    />
+
+    <PlayerLeaderboardScreen
+      v-else-if="
+        gameStore.gameState ===
+          'leaderboard' ||
+        gameStore.gameState ===
+          'finalLeaderboard'
+      "
+    />
+
+    <QuestCompleteScreen
+      v-else-if="
+        gameStore.gameState ===
+        'questComplete'
+      "
+    />
+
+    <FinalResultsScreen
+      v-else-if="
+        gameStore.gameState ===
+        'finalResults'
+      "
+    />
+
+    <WaitingScreen
+      v-else
+      :next-round="gameStore.nextRound"
+    />
   </PlayerShell>
-
-
 </template>
-
-<style scoped>
-.dev-controls {
-  position: fixed;
-  z-index: 99;
-  right: 12px;
-  bottom: 12px;
-  display: flex;
-  gap: 8px;
-}
-
-.dev-controls button {
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: var(--card);
-  color: var(--cream);
-  padding: 8px;
-  font-size: 12px;
-}
-
-
-</style>
