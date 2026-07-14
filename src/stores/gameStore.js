@@ -6,6 +6,7 @@ export const useGameStore = defineStore('game', () => {
   const questions = ref([])
   const answers = ref([])
 
+
   const activeRoundId = ref(null)
   const activeQuestionId = ref(null)
 
@@ -15,6 +16,7 @@ export const useGameStore = defineStore('game', () => {
 
   const isContentLoading = ref(false)
   const contentError = ref('')
+  const isUpdatingGame = ref(false)
 
   function normaliseRound(round) {
     return {
@@ -1003,17 +1005,27 @@ export const useGameStore = defineStore('game', () => {
   }
 
   async function saveGameState() {
+    if (isUpdatingGame.value) {
+      return {
+        success: false,
+        error:
+          'The game is already being updated.',
+      }
+    }
+  
+    isUpdatingGame.value = true
+  
     try {
       const response = await fetch(
         '/api/game-state',
         {
           method: 'PUT',
-
+  
           headers: {
             'Content-Type':
               'application/json',
           },
-
+  
           body: JSON.stringify({
             status: gameState.value,
             activeRoundId:
@@ -1023,12 +1035,29 @@ export const useGameStore = defineStore('game', () => {
           }),
         },
       )
-
+  
       const state = await getResponseData(
         response,
         'Could not save game state.',
       )
-
+  
+      gameState.value =
+        state.status || gameState.value
+  
+      activeRoundId.value =
+        state.activeRoundId !== null &&
+        state.activeRoundId !== undefined
+          ? Number(state.activeRoundId)
+          : null
+  
+      activeQuestionId.value =
+        state.activeQuestionId !== null &&
+        state.activeQuestionId !== undefined
+          ? Number(
+              state.activeQuestionId,
+            )
+          : null
+  
       return {
         success: true,
         state,
@@ -1038,11 +1067,13 @@ export const useGameStore = defineStore('game', () => {
         'Failed to save game state:',
         error,
       )
-
+  
       return {
         success: false,
         error: error.message,
       }
+    } finally {
+      isUpdatingGame.value = false
     }
   }
 
@@ -1168,6 +1199,7 @@ export const useGameStore = defineStore('game', () => {
     gameState,
 
     isContentLoading,
+    isUpdatingGame,
     contentError,
 
     orderedRounds,
