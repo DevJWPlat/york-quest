@@ -370,7 +370,7 @@ function editTieBreaker() {
   populateTieBreakerForm()
 
   window.scrollTo({
-    top: 0,
+    bottom: 0,
     behavior: 'smooth',
   })
 }
