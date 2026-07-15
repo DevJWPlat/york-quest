@@ -278,6 +278,10 @@ async function loadRoundResults() {
   loading.value = true
   error.value = ''
 
+  // Clear any result left in memory from a previous test.
+  latestTieBreakerSession.value = null
+  roundAnswers.value = []
+
   try {
     const roundId =
       gameStore.currentRound.id
@@ -384,14 +388,35 @@ watch(
   () => props.show,
   async (isOpen) => {
     if (!isOpen) {
-      latestTieBreakerSession.value =
-        null
-
+      latestTieBreakerSession.value = null
+      roundAnswers.value = []
+      error.value = ''
       return
     }
 
+    latestTieBreakerSession.value = null
+
     await usersStore.loadUsers()
     await loadRoundResults()
+  },
+)
+
+watch(
+  () => gameStore.currentRound?.id,
+  async (newRoundId, previousRoundId) => {
+    if (
+      Number(newRoundId) ===
+      Number(previousRoundId)
+    ) {
+      return
+    }
+
+    latestTieBreakerSession.value = null
+    roundAnswers.value = []
+
+    if (props.show && newRoundId) {
+      await loadRoundResults()
+    }
   },
 )
 </script>
