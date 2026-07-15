@@ -1898,6 +1898,10 @@ onMounted(async () => {
         <AppCard
           v-if="selectedRound"
           class="admin-card question-panel"
+          :class="{
+            'editing-question-card':
+              editingQuestionId,
+          }"
         >
           <small>Questions</small>
 
@@ -2465,6 +2469,16 @@ textarea:disabled {
   background:
     rgba(34, 197, 94, 0.12);
   color: #bbf7d0;
+}
+
+.editing-question-card {
+  border-color: var(--burgundy);
+
+  box-shadow:
+    0 0 0 1px
+    rgba(163, 55, 59, 0.35),
+    0 0 28px
+    rgba(163, 55, 59, 0.14);
 }
 
 @media (min-width: 1000px) {
