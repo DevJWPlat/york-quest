@@ -627,7 +627,7 @@ watch(
                   size="md"
                 />
 
-                <div>
+                <div class="player-points-container">
                   <h2>
                     {{ player.name }}
                   </h2>
@@ -816,6 +816,15 @@ header p {
   display: flex;
   align-items: center;
   gap: 12px;
+  width: 100%;
+}
+
+.player-points-container {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  justify-content: space-between;
+  width: 100%;
 }
 
 .player-result h2 {
@@ -825,7 +834,7 @@ header p {
 }
 
 .player-result p {
-  margin: 3px 0 0;
+  margin: 0;
   color: var(--muted);
 }
 

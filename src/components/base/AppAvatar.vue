@@ -51,7 +51,9 @@ function initials(name) {
 
 .avatar--md {
   width: 44px;
+  min-width: 44px;
   height: 44px;
+  min-height: 44px;
   font-size: 14px;
 }
 
