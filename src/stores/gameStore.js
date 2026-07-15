@@ -326,24 +326,76 @@ export const useGameStore = defineStore('game', () => {
     })
   }
 
+  async function clearRoundTieBreakers(
+    roundId,
+  ) {
+    try {
+      const response = await fetch(
+        '/api/tie-breaker-sessions',
+        {
+          method: 'DELETE',
+  
+          headers: {
+            'Content-Type':
+              'application/json',
+          },
+  
+          body: JSON.stringify({
+            roundId,
+          }),
+        },
+      )
+  
+      await getResponseData(
+        response,
+        'Unable to clear previous tie-breakers.',
+      )
+  
+      return {
+        success: true,
+      }
+    } catch (error) {
+      console.error(
+        'Failed to clear previous tie-breakers:',
+        error,
+      )
+  
+      return {
+        success: false,
+        error:
+          error.message ||
+          'Unable to clear previous tie-breakers.',
+      }
+    }
+  }
+
   async function startRound(roundId) {
     const parsedRoundId = Number(roundId)
-
+  
     const roundExists = rounds.value.some(
       (round) =>
         Number(round.id) === parsedRoundId,
     )
-
+  
     if (!roundExists) {
       return {
         success: false,
         error: 'Round not found.',
       }
     }
-
+  
+    const clearResult =
+      await clearRoundTieBreakers(
+        parsedRoundId,
+      )
+  
+    if (!clearResult.success) {
+      return clearResult
+    }
+  
     const previousRoundId =
       activeRoundId.value
-
+  
     rounds.value = rounds.value.map((round) => {
       if (
         previousRoundId &&
@@ -355,7 +407,7 @@ export const useGameStore = defineStore('game', () => {
           status: 'completed',
         }
       }
-
+  
       if (
         Number(round.id) === parsedRoundId
       ) {
@@ -364,16 +416,18 @@ export const useGameStore = defineStore('game', () => {
           status: 'live',
         }
       }
-
+  
       return round
     })
-
+  
     activeRoundId.value = parsedRoundId
     activeQuestionId.value = null
     activeTieBreakerSessionId.value = null
+  
     clearTieBreakerSession()
+  
     gameState.value = 'roundIntro'
-
+  
     return saveGameState()
   }
 
@@ -1492,5 +1546,6 @@ export const useGameStore = defineStore('game', () => {
     loadTieBreakerSession,
     submitTieBreakerAnswer,
     clearTieBreakerSession,
+    clearRoundTieBreakers,
   }
 })

@@ -1036,4 +1036,77 @@ function json(data, status = 200) {
         500,
       )
     }
-  }
+}
+
+export async function onRequestDelete({
+    request,
+    env,
+  }) {
+    try {
+      const body = await request.json()
+  
+      const roundId = Number(body.roundId)
+  
+      if (
+        !Number.isInteger(roundId) ||
+        roundId <= 0
+      ) {
+        return json(
+          {
+            error:
+              'A valid round ID is required.',
+          },
+          400,
+        )
+      }
+  
+      await env.DB.batch([
+        env.DB
+          .prepare(`
+            DELETE FROM tie_breaker_participants
+            WHERE session_id IN (
+              SELECT id
+              FROM tie_breaker_sessions
+              WHERE round_id = ?
+            )
+          `)
+          .bind(roundId),
+  
+        env.DB
+          .prepare(`
+            DELETE FROM tie_breaker_sessions
+            WHERE round_id = ?
+          `)
+          .bind(roundId),
+  
+        env.DB
+          .prepare(`
+            UPDATE game_state
+            SET
+              active_tie_breaker_session_id = NULL,
+              updated_at = CURRENT_TIMESTAMP
+            WHERE active_round_id = ?
+          `)
+          .bind(roundId),
+      ])
+  
+      return json({
+        success: true,
+        message:
+          'Previous tie-breaker sessions cleared.',
+      })
+    } catch (error) {
+      console.error(
+        'Failed to clear tie-breaker sessions:',
+        error,
+      )
+  
+      return json(
+        {
+          error:
+            'Unable to clear previous tie-breaker sessions.',
+        },
+        500,
+      )
+    }
+}
