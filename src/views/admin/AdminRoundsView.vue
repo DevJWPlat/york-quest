@@ -9,6 +9,7 @@ import AdminShell from '@/components/layout/AdminShell.vue'
 import AppCard from '@/components/base/AppCard.vue'
 import AppButton from '@/components/base/AppButton.vue'
 import AppInput from '@/components/base/AppInput.vue'
+import AppConfirmModal from '@/components/base/AppConfirmModal.vue'
 
 import { useRoundsStore } from '@/stores/roundsStore'
 
@@ -19,6 +20,7 @@ const editingQuestionId = ref(null)
 
 const roundForm = ref(createEmptyRoundForm())
 const questionForm = ref(createEmptyQuestionForm())
+
 const tieBreakerForm = ref(
   createEmptyTieBreakerForm(),
 )
@@ -37,6 +39,12 @@ const pendingUploadedImageUrl = ref('')
 
 const originalTieBreakerImageUrl = ref('')
 const pendingTieBreakerImageUrl = ref('')
+
+const roundPendingDeletion = ref(null)
+
+const showDeleteRoundModal = ref(false)
+const showDeleteTieBreakerModal = ref(false)
+const showResetTieBreakerModal = ref(false)
 
 function createEmptyRoundForm() {
   return {
@@ -533,27 +541,47 @@ async function saveRound() {
   }
 }
 
-async function removeRound(roundId) {
+/*
+ * Round deletion confirmation
+ */
+
+function requestRemoveRound(roundId) {
   const round =
     roundsStore.getRoundById(roundId)
 
-  if (!round) return
-
-  const tieBreaker =
-    roundsStore.getTieBreakerByRound(
-      roundId,
-    )
-
-  const confirmed = window.confirm(
-    `Delete ${round.name} and all of its questions, tie-breaker and answers?`,
-  )
-
-  if (!confirmed) return
+  if (!round || isPageBusy.value) {
+    return
+  }
 
   clearMessages()
 
+  roundPendingDeletion.value = round
+  showDeleteRoundModal.value = true
+}
+
+function cancelRemoveRound() {
+  showDeleteRoundModal.value = false
+  roundPendingDeletion.value = null
+}
+
+async function confirmRemoveRound() {
+  const round =
+    roundPendingDeletion.value
+
+  if (!round) {
+    return
+  }
+
+  const tieBreaker =
+    roundsStore.getTieBreakerByRound(
+      round.id,
+    )
+
+  showDeleteRoundModal.value = false
+  clearMessages()
+
   try {
-    await roundsStore.deleteRound(roundId)
+    await roundsStore.deleteRound(round.id)
 
     if (tieBreaker?.imageUrl) {
       try {
@@ -567,6 +595,8 @@ async function removeRound(roundId) {
         )
       }
     }
+
+    roundPendingDeletion.value = null
 
     successMessage.value =
       'Round deleted successfully.'
@@ -1132,12 +1162,43 @@ async function cancelQuestionEditing(
   }
 }
 
-async function resetTieBreakerForm() {
+/*
+ * Tie-breaker reset confirmation
+ */
+
+function requestResetTieBreaker() {
+  if (
+    !selectedTieBreaker.value ||
+    isTieBreakerBusy.value
+  ) {
+    return
+  }
+
+  clearMessages()
+  showResetTieBreakerModal.value = true
+}
+
+function cancelResetTieBreaker() {
+  showResetTieBreakerModal.value = false
+}
+
+async function confirmResetTieBreaker() {
+  showResetTieBreakerModal.value = false
+
   await cleanupPendingTieBreakerImage()
 
   clearMessages()
   populateTieBreakerForm()
+
+  successMessage.value =
+    'Tie-breaker changes reset.'
 }
+
+/*
+ * Question deletion
+ *
+ * This still uses the browser confirmation for now.
+ */
 
 async function removeQuestion(question) {
   const confirmed = window.confirm(
@@ -1185,7 +1246,27 @@ async function removeQuestion(question) {
   }
 }
 
-async function removeTieBreaker() {
+/*
+ * Tie-breaker deletion confirmation
+ */
+
+function requestRemoveTieBreaker() {
+  if (
+    !selectedTieBreaker.value ||
+    isTieBreakerBusy.value
+  ) {
+    return
+  }
+
+  clearMessages()
+  showDeleteTieBreakerModal.value = true
+}
+
+function cancelRemoveTieBreaker() {
+  showDeleteTieBreakerModal.value = false
+}
+
+async function confirmRemoveTieBreaker() {
   const tieBreaker =
     selectedTieBreaker.value
 
@@ -1193,12 +1274,7 @@ async function removeTieBreaker() {
     return
   }
 
-  const confirmed = window.confirm(
-    'Delete this tie-breaker question and any previous tie-breaker sessions for this round?',
-  )
-
-  if (!confirmed) return
-
+  showDeleteTieBreakerModal.value = false
   clearMessages()
 
   try {
@@ -1207,14 +1283,14 @@ async function removeTieBreaker() {
         tieBreaker.id,
       )
 
-    if (
+    const imageUrl =
       result?.imageUrl ||
       tieBreaker.imageUrl
-    ) {
+
+    if (imageUrl) {
       try {
         await deleteUploadedImage(
-          result?.imageUrl ||
-            tieBreaker.imageUrl,
+          imageUrl,
         )
       } catch (error) {
         console.error(
@@ -1394,24 +1470,6 @@ onMounted(async () => {
                 :disabled="isPageBusy"
               />
 
-              <AppInput
-                v-model="roundForm.location"
-                label="Location"
-                placeholder="York"
-                :disabled="isPageBusy"
-              />
-
-              <label class="field">
-                <span>Round Introduction</span>
-
-                <textarea
-                  v-model="roundForm.description"
-                  rows="4"
-                  placeholder="Add an introduction or instructions for this pub"
-                  :disabled="isPageBusy"
-                />
-              </label>
-
               <label class="checkbox-field">
                 <input
                   v-model="roundForm.isActive"
@@ -1468,7 +1526,7 @@ onMounted(async () => {
                   variant="dark"
                   :disabled="isPageBusy"
                   @click="
-                    removeRound(selectedRound.id)
+                    requestRemoveRound(selectedRound.id)
                   "
                 >
                   Delete Round
@@ -2112,6 +2170,36 @@ onMounted(async () => {
         </AppCard>
       </div>
     </template>
+    <AppConfirmModal
+      :show="showDeleteRoundModal"
+      title="Delete This Round?"
+      :message="
+        roundPendingDeletion
+          ? `Delete ${roundPendingDeletion.name} and all of its questions, tie-breaker sessions and submitted answers? This cannot be undone.`
+          : ''
+      "
+      confirm-label="Delete Round"
+      @cancel="cancelRemoveRound"
+      @confirm="confirmRemoveRound"
+    />
+
+    <AppConfirmModal
+      :show="showDeleteTieBreakerModal"
+      title="Delete Tie-Breaker?"
+      message="This will delete the tie-breaker question and any previous tie-breaker sessions for this round. This cannot be undone."
+      confirm-label="Delete Tie-Breaker"
+      @cancel="cancelRemoveTieBreaker"
+      @confirm="removeTieBreaker"
+    />
+
+    <AppConfirmModal
+      :show="showResetTieBreakerModal"
+      title="Reset Tie-Breaker Changes?"
+      message="Any unsaved changes to this tie-breaker will be discarded and the last saved version will be restored."
+      confirm-label="Reset Changes"
+      @cancel="cancelResetTieBreaker"
+      @confirm="confirmResetTieBreaker"
+    />
   </AdminShell>
 </template>
 
