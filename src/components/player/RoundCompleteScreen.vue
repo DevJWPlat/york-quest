@@ -17,6 +17,13 @@ import AppAvatar from '@/components/base/AppAvatar.vue'
 
 import { useGameStore } from '@/stores/gameStore'
 
+/*
+* Elise wants round results hidden for this event.
+* Change this to true for future quizzes where the
+* tie-breaker winner should be revealed to players.
+*/
+const revealTieBreakerWinner = false
+
 const gameStore = useGameStore()
 
 const confettiCanvas = ref(null)
@@ -162,6 +169,7 @@ onMounted(async () => {
 
     <template
       v-if="
+        revealTieBreakerWinner &&
         !loadingTieBreakerResult &&
         hasTieBreakerWinner
       "
@@ -214,6 +222,7 @@ onMounted(async () => {
         <h1>Round Complete</h1>
 
         <p>
+          Results are with the Quest Master.
           Grab a drink and wait for the next
           round.
         </p>
