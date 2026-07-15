@@ -54,6 +54,7 @@ function handleSubmit() {
       type="password"
       inputmode="numeric"
       pattern="[0-9]*"
+      autocomplete="current-password"
       placeholder="Enter PIN"
     />
 
