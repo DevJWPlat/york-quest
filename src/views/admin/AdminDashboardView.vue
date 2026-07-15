@@ -312,6 +312,26 @@ async function startFirstAvailableRound() {
 }
 
 async function startFirstQuestion() {
+  if (!gameStore.currentRound) {
+    dashboardError.value =
+      'There is no active round.'
+
+    return
+  }
+
+  const clearResult =
+    await gameStore.clearRoundTieBreakers(
+      gameStore.currentRound.id,
+    )
+
+  if (!clearResult?.success) {
+    dashboardError.value =
+      clearResult?.error ||
+      'Unable to clear previous tie-breaker results.'
+
+    return
+  }
+
   await runGameAction(
     'startQuestion',
     () => gameStore.startNextQuestion(),
