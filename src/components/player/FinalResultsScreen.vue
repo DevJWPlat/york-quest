@@ -357,8 +357,27 @@ async function loadLeaderboard() {
 }
 
 onMounted(async () => {
+  await nextTick()
+
+  if (confettiCanvas.value) {
+    fireConfetti = confetti.create(
+      confettiCanvas.value,
+      {
+        resize: true,
+        useWorker: true,
+      },
+    )
+  }
+
   await usersStore.loadUsers()
   await loadLeaderboard()
+
+  if (
+    props.showResults ||
+    props.showLeaderboard
+  ) {
+    launchFinalConfetti()
+  }
 
   leaderboardInterval =
     window.setInterval(() => {
@@ -366,10 +385,40 @@ onMounted(async () => {
     }, 5000)
 })
 
+watch(
+  () => [
+    props.showResults,
+    props.showLeaderboard,
+  ],
+  async (
+    [showResults, showLeaderboard],
+    [previousResults, previousLeaderboard],
+  ) => {
+    const hasJustOpened =
+      (showResults && !previousResults) ||
+      (
+        showLeaderboard &&
+        !previousLeaderboard
+      )
+
+    if (!hasJustOpened) {
+      return
+    }
+
+    await nextTick()
+    launchFinalConfetti()
+  },
+)
+
 onUnmounted(() => {
   window.clearInterval(
     leaderboardInterval,
   )
+
+  clearConfettiTimers()
+
+  fireConfetti?.reset()
+  fireConfetti = null
 })
 </script>
 
