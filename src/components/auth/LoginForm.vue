@@ -52,8 +52,10 @@ function handleSubmit() {
     <AppInput
       v-model="password"
       type="password"
-      placeholder="Enter password"
-    /> 
+      inputmode="numeric"
+      pattern="[0-9]*"
+      placeholder="Enter PIN"
+    />
 
     <p v-if="error" class="error">{{ error }}</p>
 
