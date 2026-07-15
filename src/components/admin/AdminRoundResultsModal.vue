@@ -57,7 +57,16 @@ const currentRoundTieBreaker = computed(() => {
   )
 })
 
-const roundScores = computed(() => {
+const hasCompletedTieBreaker = computed(() => {
+  return Boolean(
+    latestTieBreakerSession.value?.status ===
+      'complete' &&
+    latestTieBreakerSession.value
+      ?.winnerUserId,
+  )
+})
+
+const baseRoundScores = computed(() => {
   const currentRoundId = Number(
     gameStore.currentRound?.id,
   )
@@ -100,6 +109,41 @@ const roundScores = computed(() => {
     })
 })
 
+const roundScores = computed(() => {
+  const scores = [...baseRoundScores.value]
+
+  if (!hasCompletedTieBreaker.value) {
+    return scores
+  }
+
+  const winnerUserId = Number(
+    latestTieBreakerSession.value
+      ?.winnerUserId,
+  )
+
+  return scores.sort((a, b) => {
+    if (b.points !== a.points) {
+      return b.points - a.points
+    }
+
+    const aIsWinner =
+      Number(a.id) === winnerUserId
+
+    const bIsWinner =
+      Number(b.id) === winnerUserId
+
+    if (aIsWinner && !bIsWinner) {
+      return -1
+    }
+
+    if (!aIsWinner && bIsWinner) {
+      return 1
+    }
+
+    return a.name.localeCompare(b.name)
+  })
+})
+
 const scoreWinners = computed(() => {
   if (!roundScores.value.length) {
     return []
@@ -132,15 +176,6 @@ const losers = computed(() => {
 
 const hasWinnerTie = computed(() => {
   return scoreWinners.value.length > 1
-})
-
-const hasCompletedTieBreaker = computed(() => {
-  return Boolean(
-    latestTieBreakerSession.value?.status ===
-      'complete' &&
-    latestTieBreakerSession.value
-      ?.winnerUserId,
-  )
 })
 
 const tieBreakerWinner = computed(() => {
