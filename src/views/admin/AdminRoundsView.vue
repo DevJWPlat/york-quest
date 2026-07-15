@@ -1259,7 +1259,7 @@ async function removeQuestion(question) {
  * Tie-breaker deletion confirmation
  */
 
-function requestRemoveTieBreaker() {
+ function requestRemoveTieBreaker() {
   if (
     !selectedTieBreaker.value ||
     isTieBreakerBusy.value
@@ -2183,7 +2183,6 @@ onMounted(async () => {
               >
                 Edit
               </AppButton>
-
               <AppButton
                 variant="dark"
                 :disabled="isPageBusy"
@@ -2219,12 +2218,12 @@ onMounted(async () => {
     />
 
     <AppConfirmModal
-      :show="showResetTieBreakerModal"
-      title="Reset Tie-Breaker Changes?"
-      message="Any unsaved changes to this tie-breaker will be discarded and the last saved version will be restored."
-      confirm-label="Reset Changes"
-      @cancel="cancelResetTieBreaker"
-      @confirm="confirmResetTieBreaker"
+      :show="showDeleteTieBreakerModal"
+      title="Delete Tie-Breaker?"
+      message="This will delete the tie-breaker question and any previous tie-breaker sessions for this round. This cannot be undone."
+      confirm-label="Delete Tie-Breaker"
+      @cancel="cancelRemoveTieBreaker"
+      @confirm="confirmRemoveTieBreaker"
     />
   </AdminShell>
 </template>
