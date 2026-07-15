@@ -221,7 +221,7 @@ export const useGameStore = defineStore('game', () => {
   async function loadQuizContent() {
     isContentLoading.value = true
     contentError.value = ''
-
+  
     try {
       const [roundsResponse, questionsResponse] =
         await Promise.all([
@@ -230,59 +230,76 @@ export const useGameStore = defineStore('game', () => {
               Accept: 'application/json',
             },
           }),
-
+  
           fetch('/api/questions?active=true', {
             headers: {
               Accept: 'application/json',
             },
           }),
         ])
-
+  
       const [roundData, questionData] =
         await Promise.all([
           getResponseData(
             roundsResponse,
             'Unable to load rounds.',
           ),
-
+  
           getResponseData(
             questionsResponse,
             'Unable to load questions.',
           ),
         ])
-
+  
       const existingStatuses = new Map(
         rounds.value.map((round) => [
           Number(round.id),
           round.status,
         ]),
       )
-
-      rounds.value = (
+  
+      const normalisedRounds = (
         Array.isArray(roundData)
           ? roundData
           : []
-      ).map((round) => {
-        const normalisedRound =
-          normaliseRound(round)
-
-        return {
-          ...normalisedRound,
-          status:
-            existingStatuses.get(
-              normalisedRound.id,
-            ) || 'locked',
-        }
-      })
-
+      )
+        .map(normaliseRound)
+        .sort((a, b) => {
+          if (a.sortOrder !== b.sortOrder) {
+            return a.sortOrder - b.sortOrder
+          }
+  
+          return a.id - b.id
+        })
+  
+      rounds.value = normalisedRounds.map(
+        (round, index) => {
+          return {
+            ...round,
+  
+            /*
+             * Number visible rounds consecutively.
+             * This avoids gaps such as Pub 3 appearing
+             * after an older round has been deleted.
+             */
+            title: `Pub ${index + 1}`,
+  
+            status:
+              existingStatuses.get(
+                round.id,
+              ) || 'locked',
+          }
+        },
+      )
+  
       questions.value = (
         Array.isArray(questionData)
           ? questionData
           : []
       ).map(normaliseQuestion)
-
+  
       restoreRoundStatuses()
-
+  
       return {
         rounds: rounds.value,
         questions: questions.value,
@@ -292,11 +309,11 @@ export const useGameStore = defineStore('game', () => {
         'Failed to load quiz content:',
         error,
       )
-
+  
       contentError.value =
         error.message ||
         'Unable to load quiz content.'
-
+  
       return {
         rounds: [],
         questions: [],
