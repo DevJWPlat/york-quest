@@ -3,9 +3,9 @@ import { ref } from 'vue'
 
 import AppButton from '@/components/base/AppButton.vue'
 import AppInput from '@/components/base/AppInput.vue'
+import { Eye, EyeOff } from 'lucide-vue-next'
 
-
-
+const showPassword = ref(false)
 
 defineProps({
   mode: {
@@ -49,14 +49,43 @@ function handleSubmit() {
       placeholder="Enter username"
     />
 
-    <AppInput
-      v-model="password"
-      type="password"
-      inputmode="numeric"
-      pattern="[0-9]*"
-      autocomplete="current-password"
-      placeholder="Enter PIN"
-    />
+    <div class="password-field">
+      <AppInput
+        v-model="password"
+        :type="
+          showPassword
+            ? 'text'
+            : 'password'
+        "
+        inputmode="numeric"
+        pattern="[0-9]*"
+        autocomplete="current-password"
+        placeholder="Enter PIN"
+      />
+
+      <button
+        type="button"
+        class="password-toggle"
+        :aria-label="
+          showPassword
+            ? 'Hide PIN'
+            : 'Show PIN'
+        "
+        @click="
+          showPassword = !showPassword
+        "
+      >
+        <EyeOff
+          v-if="showPassword"
+          :size="24"
+        />
+
+        <Eye
+          v-else
+          :size="24"
+        />
+      </button>
+    </div>
 
     <p v-if="error" class="error">{{ error }}</p>
 
@@ -97,5 +126,30 @@ p {
   color: var(--error);
   font-size: 13px;
   font-weight: 700;
+}
+
+.password-field {
+  position: relative;
+}
+
+.password-field :deep(input) {
+  padding-right: 58px;
+}
+
+.password-toggle {
+  position: absolute;
+  top: 50%;
+  right: 18px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  transform: translateY(-50%);
+  cursor: pointer;
+}
+
+.password-toggle:hover {
+  color: var(--gold);
 }
 </style>
