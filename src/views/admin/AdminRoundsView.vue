@@ -366,6 +366,15 @@ function resetTieBreakerImageState() {
   }
 }
 
+function editTieBreaker() {
+  populateTieBreakerForm()
+
+  window.scrollTo({
+    top: 0,
+    behavior: 'smooth',
+  })
+}
+
 function populateTieBreakerForm() {
   const tieBreaker =
     selectedTieBreaker.value
@@ -2166,6 +2175,23 @@ onMounted(async () => {
                 'Not set'
               }}
             </p>
+            <div class="question-actions">
+              <AppButton
+                variant="dark"
+                :disabled="isPageBusy"
+                @click="editTieBreaker"
+              >
+                Edit
+              </AppButton>
+
+              <AppButton
+                variant="dark"
+                :disabled="isPageBusy"
+                @click="requestRemoveTieBreaker"
+              >
+                Delete
+              </AppButton>
+            </div>
           </div>
         </AppCard>
       </div>
