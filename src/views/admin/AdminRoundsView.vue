@@ -1480,10 +1480,19 @@ onMounted(async () => {
           <AppCard
             v-if="selectedRound"
             class="admin-card"
+            :class="{
+              'editing-question-card':
+                isEditingQuestion,
+            }"
           >
             <div class="section-heading">
               <div>
-                <small>
+                <small
+                  :class="{
+                    'editing-question-label':
+                      isEditingQuestion,
+                  }"
+                >
                   {{
                     isEditingQuestion
                       ? 'Edit Question'
@@ -1898,10 +1907,6 @@ onMounted(async () => {
         <AppCard
           v-if="selectedRound"
           class="admin-card question-panel"
-          :class="{
-            'editing-question-card':
-              editingQuestionId,
-          }"
         >
           <small>Questions</small>
 
@@ -2109,6 +2114,7 @@ onMounted(async () => {
     </template>
   </AdminShell>
 </template>
+
 
 <style scoped>
 .admin-card {
