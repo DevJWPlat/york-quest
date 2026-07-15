@@ -522,7 +522,7 @@ watch(
                   size="md"
                 />
 
-                <div>
+                <div class="player-points-container">
                   <h2>
                     {{ player.name }}
                   </h2>
