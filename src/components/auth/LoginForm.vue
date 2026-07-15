@@ -53,7 +53,7 @@ function handleSubmit() {
       v-model="password"
       type="password"
       placeholder="Enter password"
-    />
+    /> 
 
     <p v-if="error" class="error">{{ error }}</p>
 
